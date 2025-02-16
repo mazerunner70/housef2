@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: eu-west-1
   TERRAFORM_VERSION: 1.5.0
   NODE_VERSION: 18
 
