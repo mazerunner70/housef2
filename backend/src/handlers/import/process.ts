@@ -102,22 +102,22 @@ async function processTransactions(params: {
       
       if (isDuplicate) {
         switch (params.duplicateHandling) {
-          case 'SKIP':
-            result.duplicates++;
-            continue;
-            
-          case 'REPLACE':
-            await transactionService.replaceTransaction(params.accountId, transaction);
-            result.duplicates++;
-            break;
-            
-          case 'MARK_DUPLICATE':
-            await transactionService.createTransaction(params.accountId, {
-              ...transaction,
-              isDuplicate: true
-            });
-            result.duplicates++;
-            break;
+        case 'SKIP':
+          result.duplicates++;
+          continue;
+          
+        case 'REPLACE':
+          await transactionService.replaceTransaction(params.accountId, transaction);
+          result.duplicates++;
+          break;
+          
+        case 'MARK_DUPLICATE':
+          await transactionService.createTransaction(params.accountId, {
+            ...transaction,
+            isDuplicate: true
+          });
+          result.duplicates++;
+          break;
         }
       } else {
         await transactionService.createTransaction(params.accountId, transaction);
