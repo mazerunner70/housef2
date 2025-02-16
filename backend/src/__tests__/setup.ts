@@ -1,6 +1,3 @@
-
-import { jest, beforeAll, afterEach } from '@jest/globals';
-
 // Mock AWS SDK clients
 jest.mock('@aws-sdk/client-dynamodb', () => ({
   DynamoDBClient: jest.fn(() => ({
