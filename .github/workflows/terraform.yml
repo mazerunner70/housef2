@@ -32,14 +32,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify AWS Credentials
-        run: |
-          aws sts get-caller-identity
-          echo "Testing S3 access..."
-          aws s3 ls s3://housef2-terraform-state || true
-          echo "Testing DynamoDB access..."
-          aws dynamodb describe-table --table-name terraform-state-lock || true
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -61,17 +53,7 @@ jobs:
           terraform_version: "~1.0"
 
       - name: Initialize Terraform
-        run: |
-          # First init with reconfigure to set up the S3 backend
-          terraform init -reconfigure \
-            -backend-config="bucket=housef2-terraform-state" \
-            -backend-config="key=dev/terraform.tfstate" \
-            -backend-config="region=eu-west-2" \
-            -backend-config="dynamodb_table=terraform-state-lock" \
-            -backend-config="encrypt=true"
-          
-          # Create workspace if it doesn't exist
-          terraform workspace select dev || terraform workspace new dev
+        run: terraform init
         
       - name: Terraform Plan
         run: terraform plan -input=false

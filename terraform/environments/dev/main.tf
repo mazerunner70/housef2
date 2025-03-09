@@ -48,14 +48,6 @@ locals {
   domain_name = "dev.${var.domain_name}"
 }
 
-# GitHub Actions Module
-module "github_actions" {
-  source = "../../modules/github-actions"
-
-  github_org  = var.github_org
-  github_repo = var.github_repo
-}
-
 # Storage Module
 module "storage" {
   source = "../../modules/storage"
@@ -149,16 +141,6 @@ variable "domain_name" {
   default     = "example.com"
 }
 
-variable "github_org" {
-  description = "GitHub organization name"
-  type        = string
-}
-
-variable "github_repo" {
-  description = "GitHub repository name"
-  type        = string
-}
-
 # Outputs
 output "api_url" {
   value = module.api.api_url
@@ -178,9 +160,4 @@ output "cognito_user_pool_id" {
 
 output "cognito_client_id" {
   value = module.auth.user_pool_client_id
-}
-
-output "github_actions_role_arn" {
-  description = "ARN of the GitHub Actions IAM role"
-  value       = module.github_actions.role_arn
 } 
