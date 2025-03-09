@@ -19,13 +19,15 @@ resource "null_resource" "web_build" {
       ls -l /home/runner/work/housef2/housef2 && \
       cd ${abspath(path.root)}/../../../frontend && \
       npm install && \
-      npm run build
+      npm run build && \
+      ls -l /home/runner/work/housef2/housef2/frontend/dist
     EOT
   }
 }
 
 # Upload built files to S3
 resource "aws_s3_object" "web_files" {
+  command = "ls -l /home/runner/work/housef2/housef2/frontend/dist"
   for_each = fileset("${abspath(path.root)}/../../../frontend/dist", "**/*")
 
   bucket       = var.web_bucket
