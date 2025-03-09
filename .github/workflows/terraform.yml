@@ -52,8 +52,23 @@ jobs:
         with:
           terraform_version: "~1.0"
 
-      - name: Initialize Terraform
-        run: terraform init
+      - name: Initialize Terraform with Local Backend
+        run: |
+          # Initialize with local backend first
+          terraform init -backend=false
+          
+          # Create dev workspace
+          terraform workspace new dev || terraform workspace select dev
+
+      - name: Initialize Terraform with S3 Backend
+        run: |
+          # Now initialize with S3 backend
+          terraform init \
+            -backend-config="bucket=housef2-terraform-state" \
+            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="region=eu-west-2" \
+            -backend-config="dynamodb_table=terraform-state-lock" \
+            -backend-config="encrypt=true"
         
       - name: Terraform Plan
         run: terraform plan -input=false
