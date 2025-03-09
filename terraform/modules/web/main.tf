@@ -16,6 +16,7 @@ resource "null_resource" "web_build" {
 
   provisioner "local-exec" {
     command = <<EOT
+      ls -l /home/runner/work/housef2 && \
       cd ${abspath(path.root)}/../../frontend && \
       npm install && \
       npm run build
