@@ -31,9 +31,9 @@ resource "null_resource" "debug_files" {
   provisioner "local-exec" {
     command = <<EOT
       echo "Checking files in dist directory:" && \
-      ls -la /home/runner/work/housef2/housef2/frontend/dist && \
+      ls -la /home/runner/work/housef2/housef2/frontend && \
       echo "Trying fileset:" && \
-      find /home/runner/work/housef2/housef2/frontend/dist -type f
+      find /home/runner/work/housef2/housef2/frontend -type f
     EOT
   }
   depends_on = [null_resource.web_build]
