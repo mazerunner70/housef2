@@ -12,7 +12,7 @@ terraform {
 resource "null_resource" "web_build" {
 
 #  triggers = {
-#    source_code = sha256(join("", [for f in fileset("${abspath(path.root)}/../../frontend/src", "**/*"): filesha256("${abspath(path.root)}/../../frontend/src/${f}")]))
+#    source_code = sha256(join("", [for f in fileset("/home/runner/work/housef2/housef2/frontend/src", "**/*"): filesha256("/home/runner/work/housef2/housef2/frontend/src/${f}")]))
 #  }
 
   provisioner "local-exec" {
