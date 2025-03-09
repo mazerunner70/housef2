@@ -26,11 +26,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug Role ARN
+        run: |
+          echo "Role ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-terraform"
+          echo "GitHub Repository: ${{ github.repository }}"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-terraform
+          role-to-assume: ${{ secrets.TERRAFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS Credentials
+        run: |
+          aws sts get-caller-identity
+          aws iam get-role --role-name github-actions-terraform
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -53,7 +63,13 @@ jobs:
           terraform_version: "~1.0"
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=housef2-terraform-state" \
+            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="region=eu-west-2" \
+            -backend-config="dynamodb_table=terraform-state-lock" \
+            -backend-config="encrypt=true"
         
       - name: Terraform Plan
         run: terraform plan -input=false

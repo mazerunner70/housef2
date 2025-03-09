@@ -9,8 +9,12 @@ terraform {
     }
   }
 
-  backend "local" {
-    path = "terraform.tfstate"
+  backend "s3" {
+    bucket         = "housef2-terraform-state"
+    key            = "dev/terraform.tfstate"
+    region         = "eu-west-2"
+    dynamodb_table = "terraform-state-lock"
+    encrypt        = true
   }
 }
 
