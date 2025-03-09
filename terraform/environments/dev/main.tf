@@ -69,7 +69,7 @@ module "lambda" {
 
   project_name = "${var.project_name}-dev"
   environment = local.environment
-  lambda_zip_path = "../../../backend/dist/lambda.zip"
+  lambda_zip_path = "../../../backend/lambda.zip"
 
   main_table_name = module.storage.main_table
   main_table_arn = "arn:aws:dynamodb:eu-west-2:${data.aws_caller_identity.current.account_id}:table/${module.storage.main_table}"

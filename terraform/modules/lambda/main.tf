@@ -9,8 +9,8 @@ resource "null_resource" "lambda_build" {
     command     = <<EOT
       npm install
       npm run build
-      rm -f dist/lambda.zip
-      cd dist && zip -r lambda.zip .
+      rm -f lambda.zip
+      cd dist && zip -r ../lambda.zip .
     EOT
   }
 }
