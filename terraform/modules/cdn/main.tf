@@ -139,7 +139,6 @@ resource "aws_s3_bucket_policy" "web" {
 
   depends_on = [aws_cloudfront_origin_access_identity.web]
 }
-
 # Variables
 variable "domain_name" {
   description = "Domain name for the application"
