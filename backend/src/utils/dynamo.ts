@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, PutCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, PutCommand, UpdateCommand, GetCommand, QueryCommandOutput, PutCommandOutput, UpdateCommandOutput, GetCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { Logger } from './logger';
 
 export class DynamoDB {
@@ -24,18 +24,17 @@ export class DynamoDB {
     this.logger = new Logger('dynamo-util');
   }
 
-  async query(params: any) {
+  async query(params: any): Promise<QueryCommandOutput> {
     try {
       const command = new QueryCommand(params);
-      const result = await this.client.send(command);
-      return result;
+      return await this.client.send(command);
     } catch (error) {
       this.logger.error('DynamoDB query error', { error, params });
-      throw error;
+      throw new Error(`Database query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  async put(params: any) {
+  async put(params: any): Promise<PutCommandOutput> {
     try {
       const command = new PutCommand(params);
       const result = await this.client.send(command);
@@ -46,7 +45,7 @@ export class DynamoDB {
     }
   }
 
-  async update(params: any) {
+  async update(params: any): Promise<UpdateCommandOutput> {
     try {
       const command = new UpdateCommand(params);
       const result = await this.client.send(command);
@@ -57,7 +56,7 @@ export class DynamoDB {
     }
   }
 
-  async get(params: any) {
+  async get(params: any): Promise<GetCommandOutput> {
     try {
       const command = new GetCommand(params);
       const result = await this.client.send(command);

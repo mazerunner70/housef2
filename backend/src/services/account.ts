@@ -1,6 +1,7 @@
 import { DynamoDB } from '../utils/dynamo';
 import { Logger } from '../utils/logger';
-import { Account, AccountSummary } from '../models/account';
+import { AccountSummary } from '../types/account';
+import { config } from '../config';
 
 export class AccountService {
   private dynamo: DynamoDB;
@@ -12,17 +13,22 @@ export class AccountService {
   }
 
   async listAccounts(userId: string): Promise<AccountSummary[]> {
-    const params = {
-      TableName: 'housef2-main',
-      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-      ExpressionAttributeValues: {
-        ':pk': `USER#${userId}`,
-        ':sk': 'ACCOUNT#'
-      }
-    };
+    try {
+      const params = {
+        TableName: config.tables.main,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        ExpressionAttributeValues: {
+          ':pk': `USER#${userId}`,
+          ':sk': 'ACCOUNT#'
+        }
+      };
 
-    const result = await this.dynamo.query(params);
-    return result.Items.map(this.mapToAccountSummary);
+      const result = await this.dynamo.query(params);
+      return (result.Items ?? []).map(this.mapToAccountSummary);
+    } catch (error) {
+      this.logger.error('Failed to list accounts', { userId, error });
+      throw error;
+    }
   }
 
   private mapToAccountSummary(item: any): AccountSummary {

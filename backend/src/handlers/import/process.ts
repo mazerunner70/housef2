@@ -2,18 +2,23 @@ import { Handler } from 'aws-lambda';
 import { Logger } from '../../utils/logger';
 import { ImportService } from '../../services/import';
 import { TransactionService } from '../../services/transaction';
-import { AccountService } from '../../services/account';
 
-interface ProcessEvent {
+import { Transaction } from '../../types/transaction';
+
+export interface ProcessEvent {
   accountId: string;
   uploadId: string;
   duplicateHandling: 'SKIP' | 'REPLACE' | 'MARK_DUPLICATE';
 }
 
+interface ImportError extends Error {
+  code?: string;
+}
+
 const logger = new Logger('import-process-handler');
-const importService = new ImportService();
+export const importService = new ImportService();
 const transactionService = new TransactionService();
-const accountService = new AccountService();
+
 
 export const handler: Handler<ProcessEvent> = async (event) => {
   try {
@@ -23,12 +28,14 @@ export const handler: Handler<ProcessEvent> = async (event) => {
     
     // Get import status and analysis
     const importStatus = await importService.getImportStatus(accountId, uploadId);
+    console.log('importStatus', importStatus);
     
+ 
     // Get file content
-    const fileContent = await importService.getImportFile(accountId, uploadId);
+    const fileContent: string = await importService.getImportFile(accountId, uploadId);
     
     // Parse transactions
-    const transactions = await importService.parseTransactions(fileContent);
+    const transactions: Transaction[] = await importService.parseTransactions(fileContent);
     
     // Process transactions based on duplicate handling strategy
     const result = await processTransactions({
@@ -38,18 +45,33 @@ export const handler: Handler<ProcessEvent> = async (event) => {
       existingTransactions: importStatus.analysisData.sampleTransactions.existing
     });
     
-    // Update account balance
-    await accountService.updateBalance(accountId);
-    
     // Update import status
     await importService.updateImportStatus({
       accountId,
       uploadId,
       status: 'COMPLETED',
-      summary: {
-        transactionsAdded: result.added,
-        duplicatesHandled: result.duplicates,
-        errors: result.errors
+      analysisData: {
+        fileStats: {
+          transactionCount: transactions.length,
+          dateRange: {
+            start: transactions[0]?.date || new Date().toISOString(),
+            end: transactions[transactions.length - 1]?.date || new Date().toISOString()
+          }
+        },
+        overlapStats: {
+          existingTransactions: importStatus.analysisData.sampleTransactions.existing.length,
+          newTransactions: result.added,
+          potentialDuplicates: result.duplicates,
+          overlapPeriod: {
+            start: transactions[0]?.date || new Date().toISOString(),
+            end: transactions[transactions.length - 1]?.date || new Date().toISOString()
+          }
+        },
+        sampleTransactions: {
+          new: transactions.slice(0, 5),
+          existing: importStatus.analysisData.sampleTransactions.existing,
+          duplicates: []
+        }
       }
     });
     
@@ -63,18 +85,33 @@ export const handler: Handler<ProcessEvent> = async (event) => {
   } catch (error) {
     logger.error('Error processing import', { error });
     
+    const importError = error as ImportError;
+    
     // Update import status with error
     await importService.updateImportStatus({
       accountId: event.accountId,
       uploadId: event.uploadId,
       status: 'FAILED',
-      error: {
-        message: error.message,
-        code: error.code || 'PROCESSING_ERROR'
+      analysisData: {
+        fileStats: {
+          transactionCount: 0,
+          dateRange: { start: new Date().toISOString(), end: new Date().toISOString() }
+        },
+        overlapStats: {
+          existingTransactions: 0,
+          newTransactions: 0,
+          potentialDuplicates: 0,
+          overlapPeriod: { start: new Date().toISOString(), end: new Date().toISOString() }
+        },
+        sampleTransactions: {
+          new: [],
+          existing: [],
+          duplicates: []
+        }
       }
     });
     
-    throw error;
+    throw importError;
   }
 };
 
@@ -96,36 +133,40 @@ async function processTransactions(params: {
   
   for (const transaction of params.transactions) {
     try {
+      // Check for duplicates by date and amount
       const isDuplicate = params.existingTransactions.some(
-        existing => importService.isPotentialDuplicate(transaction, existing)
+        existing => 
+          existing.date === transaction.date && 
+          existing.amount === transaction.amount
       );
       
       if (isDuplicate) {
         switch (params.duplicateHandling) {
-        case 'SKIP':
-          result.duplicates++;
-          continue;
-          
-        case 'REPLACE':
-          await transactionService.replaceTransaction(params.accountId, transaction);
-          result.duplicates++;
-          break;
-          
-        case 'MARK_DUPLICATE':
-          await transactionService.createTransaction(params.accountId, {
-            ...transaction,
-            isDuplicate: true
-          });
-          result.duplicates++;
-          break;
+          case 'SKIP':
+            result.duplicates++;
+            continue;
+            
+          case 'REPLACE':
+            await transactionService.replaceTransaction(params.accountId, transaction);
+            result.duplicates++;
+            break;
+            
+          case 'MARK_DUPLICATE':
+            await transactionService.createTransaction(params.accountId, {
+              ...transaction,
+              isDuplicate: true
+            });
+            result.duplicates++;
+            break;
         }
       } else {
         await transactionService.createTransaction(params.accountId, transaction);
         result.added++;
       }
     } catch (error) {
-      logger.error('Error processing transaction', { error, transaction });
-      result.errors.push(`Failed to process transaction: ${error.message}`);
+      const err = error as Error;
+      logger.error('Error processing transaction', { error: err, transaction });
+      result.errors.push(`Failed to process transaction: ${err.message}`);
     }
   }
   

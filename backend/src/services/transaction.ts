@@ -1,13 +1,15 @@
+import { Transaction } from '../types/transaction';
 import { DynamoDB } from '../utils/dynamo';
-import { Logger } from '../utils/logger';
+import { config } from '../config';
+// import { Logger } from '../utils/logger';
 
 export class TransactionService {
   private dynamo: DynamoDB;
-  private logger: Logger;
+  // private logger: Logger;
 
   constructor() {
     this.dynamo = new DynamoDB();
-    this.logger = new Logger('transaction-service');
+    // this.logger = new Logger('transaction-service');
   }
 
   async getRecentTransactions(accountId: string): Promise<Transaction[]> {
@@ -15,7 +17,7 @@ export class TransactionService {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
     const params = {
-      TableName: 'housef2-main',
+      TableName: config.tables.main,
       KeyConditionExpression: 'PK = :pk AND SK > :sk',
       ExpressionAttributeValues: {
         ':pk': `ACCOUNT#${accountId}`,
@@ -24,7 +26,7 @@ export class TransactionService {
     };
     
     const result = await this.dynamo.query(params);
-    return result.Items;
+    return result.Items as Transaction[];
   }
 
   async createTransaction(accountId: string, transaction: Transaction) {
@@ -39,7 +41,7 @@ export class TransactionService {
     };
     
     await this.dynamo.put({
-      TableName: 'housef2-main',
+      TableName: config.tables.main,
       Item: item
     });
   }

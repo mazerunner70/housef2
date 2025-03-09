@@ -1,0 +1,62 @@
+name: 'Terraform Deploy'
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: eu-west-2
+  TF_WORKSPACE: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: terraform/environments/dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Build Backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.0"
+
+      - name: Terraform Init
+        run: terraform init
+        
+      - name: Terraform Plan
+        run: terraform plan -input=false
+        
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false 

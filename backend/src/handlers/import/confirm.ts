@@ -11,6 +11,11 @@ export const handler: APIGatewayProxyHandler = async (event, context) => {
   try {
     const userId = await validateToken(event.headers.Authorization);
     const { accountId, uploadId } = event.pathParameters || {};
+    
+    if (!accountId || !uploadId) {
+      throw new Error('Missing required path parameters');
+    }
+
     const request = JSON.parse(event.body || '{}');
     
     // Validate request
@@ -44,12 +49,24 @@ export const handler: APIGatewayProxyHandler = async (event, context) => {
   } catch (error) {
     logger.error('Error confirming import', { error });
     
+    const errorResponse = {
+      statusCode: 500,
+      code: 'INTERNAL_ERROR',
+      message: 'An unexpected error occurred'
+    };
+
+    if (error instanceof Error) {
+      errorResponse.message = error.message;
+      if ('statusCode' in error) errorResponse.statusCode = (error as any).statusCode;
+      if ('code' in error) errorResponse.code = (error as any).code;
+    }
+    
     return {
-      statusCode: error.statusCode || 500,
+      statusCode: errorResponse.statusCode,
       body: JSON.stringify({
         error: {
-          code: error.code || 'INTERNAL_ERROR',
-          message: error.message,
+          code: errorResponse.code,
+          message: errorResponse.message,
           requestId: context.awsRequestId
         }
       })

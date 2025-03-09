@@ -16,7 +16,7 @@ export const handler: S3Handler = async (event) => {
       logger.info('Analyzing import file', { bucket, key });
       
       // Extract metadata from key
-      const { userId, accountId, uploadId } = importService.parseS3Key(key);
+      const { accountId, uploadId } = importService.parseS3Key(key);
       
       // Get existing transactions for overlap period
       const existingTransactions = await transactionService.getRecentTransactions(accountId);

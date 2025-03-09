@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, GetObjectCommandOutput } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Logger } from './logger';
 import { Readable } from 'stream';
@@ -39,13 +39,13 @@ export class S3 {
 
   async getFileContent(bucket: string, key: string): Promise<string> {
     try {
-      const command = new GetObjectCommand({
+        const command: GetObjectCommand = new GetObjectCommand({
         Bucket: bucket,
         Key: key
       });
 
-      const response = await this.client.send(command);
-      const stream = response.Body as Readable;
+      const response: GetObjectCommandOutput = await this.client.send(command);
+      const stream: Readable = response.Body as Readable;
       
       return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];

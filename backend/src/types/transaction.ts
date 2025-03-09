@@ -1,12 +1,11 @@
 export interface Transaction {
+  id: string;
   date: string;
-  amount: number;
   description: string;
-  category?: string;
-  notes?: string;
-  tags?: string[];
+  amount: number;
+  importId?: string;
+  createdAt: string;
   isDuplicate?: boolean;
-  accountSpecificData?: Record<string, any>;
-  createdAt?: string;
-  updatedAt?: string;
-} 
+}
+
+export type TransactionField = keyof Transaction; 

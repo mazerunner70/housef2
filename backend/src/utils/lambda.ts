@@ -1,4 +1,4 @@
-import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { LambdaClient, InvokeCommand, InvocationType } from '@aws-sdk/client-lambda';
 import { Logger } from './logger';
 
 export class Lambda {
@@ -12,7 +12,7 @@ export class Lambda {
 
   async invoke(params: {
     FunctionName: string;
-    InvocationType: string;
+    InvocationType: InvocationType;
     Payload: string;
   }) {
     try {

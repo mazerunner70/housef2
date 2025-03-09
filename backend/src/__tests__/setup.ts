@@ -1,21 +1,4 @@
-// Mock AWS SDK clients
-jest.mock('@aws-sdk/client-dynamodb', () => ({
-  DynamoDBClient: jest.fn(() => ({
-    send: jest.fn()
-  }))
-}));
-
-jest.mock('@aws-sdk/client-s3', () => ({
-  S3Client: jest.fn(() => ({
-    send: jest.fn()
-  }))
-}));
-
-jest.mock('@aws-sdk/client-lambda', () => ({
-  LambdaClient: jest.fn(() => ({
-    send: jest.fn()
-  }))
-}));
+import './mocks/aws-sdk';
 
 // Global test setup
 beforeAll(() => {
