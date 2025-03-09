@@ -26,21 +26,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug Role ARN
-        run: |
-          echo "Role ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-terraform"
-          echo "GitHub Repository: ${{ github.repository }}"
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.TERRAFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
 
       - name: Verify AWS Credentials
         run: |
           aws sts get-caller-identity
-          aws iam get-role --role-name github-actions-terraform
+          echo "Testing S3 access..."
+          aws s3 ls s3://housef2-terraform-state || true
+          echo "Testing DynamoDB access..."
+          aws dynamodb describe-table --table-name terraform-state-lock || true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -75,4 +74,5 @@ jobs:
         run: terraform plan -input=false
         
       - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve -input=false 

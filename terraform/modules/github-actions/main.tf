@@ -60,6 +60,28 @@ resource "aws_iam_role_policy" "terraform_policy" {
       {
         Effect = "Allow"
         Action = [
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "arn:aws:s3:::housef2-terraform-state",
+          "arn:aws:s3:::housef2-terraform-state/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = "arn:aws:dynamodb:eu-west-2:*:table/terraform-state-lock"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "s3:*",
           "dynamodb:*",
           "lambda:*",
