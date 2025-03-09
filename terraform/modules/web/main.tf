@@ -27,16 +27,28 @@ resource "null_resource" "web_build" {
 }
 
 # Upload built files to S3
+resource "null_resource" "debug_files" {
+  provisioner "local-exec" {
+    command = <<EOT
+      echo "Checking files in dist directory:" && \
+      ls -la /home/runner/work/housef2/housef2/frontend/dist && \
+      echo "Trying fileset:" && \
+      find /home/runner/work/housef2/housef2/frontend/dist -type f
+    EOT
+  }
+  depends_on = [null_resource.web_build]
+}
+
 resource "aws_s3_object" "web_files" {
-  for_each = fileset("${abspath(path.root)}/../../../frontend/dist", "**/*")
+  for_each = fileset("/home/runner/work/housef2/housef2/frontend/dist", "*")
 
   bucket       = var.web_bucket
   key          = each.value
-  source       = "${abspath(path.root)}/../../../frontend/dist/${each.value}"
+  source       = "/home/runner/work/housef2/housef2/frontend/dist/${each.value}"
   content_type = lookup(local.mime_types, regex("\\.[^.]+$", each.value), "application/octet-stream")
-  etag         = filemd5("${abspath(path.root)}/../../../frontend/dist/${each.value}")
+  etag         = filemd5("/home/runner/work/housef2/housef2/frontend/dist/${each.value}")
 
-  depends_on = [null_resource.web_build]
+  depends_on = [null_resource.web_build, null_resource.debug_files]
 }
 
 # MIME type mapping
