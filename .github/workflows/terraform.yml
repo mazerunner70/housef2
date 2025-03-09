@@ -60,23 +60,18 @@ jobs:
         with:
           terraform_version: "~1.0"
 
-      - name: Initialize Local Backend
+      - name: Initialize Terraform
         run: |
-          terraform init -backend=false
-
-      - name: Select or Create Workspace
-        run: |
-          terraform workspace list
-          terraform workspace select dev || terraform workspace new dev
-
-      - name: Initialize Remote Backend
-        run: |
-          terraform init -force-copy \
+          # First init with reconfigure to set up the S3 backend
+          terraform init -reconfigure \
             -backend-config="bucket=housef2-terraform-state" \
             -backend-config="key=dev/terraform.tfstate" \
             -backend-config="region=eu-west-2" \
             -backend-config="dynamodb_table=terraform-state-lock" \
             -backend-config="encrypt=true"
+          
+          # Create workspace if it doesn't exist
+          terraform workspace select dev || terraform workspace new dev
         
       - name: Terraform Plan
         run: terraform plan -input=false
