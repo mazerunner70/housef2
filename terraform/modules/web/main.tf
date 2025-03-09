@@ -10,9 +10,10 @@ terraform {
 
 # Build process for web files
 resource "null_resource" "web_build" {
-  triggers = {
-    source_code = sha256(join("", [for f in fileset("${abspath(path.root)}/../../frontend/src", "**/*"): filesha256("${abspath(path.root)}/../../frontend/src/${f}")]))
-  }
+
+#  triggers = {
+#    source_code = sha256(join("", [for f in fileset("${abspath(path.root)}/../../frontend/src", "**/*"): filesha256("${abspath(path.root)}/../../frontend/src/${f}")]))
+#  }
 
   provisioner "local-exec" {
     command = <<EOT
