@@ -60,9 +60,18 @@ jobs:
         with:
           terraform_version: "~1.0"
 
-      - name: Terraform Init
+      - name: Initialize Local Backend
         run: |
-          terraform init \
+          terraform init -backend=false
+
+      - name: Select or Create Workspace
+        run: |
+          terraform workspace list
+          terraform workspace select dev || terraform workspace new dev
+
+      - name: Initialize Remote Backend
+        run: |
+          terraform init -force-copy \
             -backend-config="bucket=housef2-terraform-state" \
             -backend-config="key=dev/terraform.tfstate" \
             -backend-config="region=eu-west-2" \
