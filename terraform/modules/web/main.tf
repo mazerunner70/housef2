@@ -27,7 +27,6 @@ resource "null_resource" "web_build" {
 
 # Upload built files to S3
 resource "aws_s3_object" "web_files" {
-  command = "ls -l /home/runner/work/housef2/housef2/frontend/dist"
   for_each = fileset("${abspath(path.root)}/../../../frontend/dist", "**/*")
 
   bucket       = var.web_bucket
