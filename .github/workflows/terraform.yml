@@ -55,10 +55,7 @@ jobs:
       - name: Initialize Terraform with Local Backend
         run: |
           # Initialize with local backend first
-          terraform init -backend=false
-          
-          # Create dev workspace
-          terraform workspace new dev || terraform workspace select dev
+          terraform init
 
       - name: Initialize Terraform with S3 Backend
         run: |
