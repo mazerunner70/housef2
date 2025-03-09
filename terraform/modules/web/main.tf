@@ -11,9 +11,9 @@ terraform {
 # Build process for web files
 resource "null_resource" "web_build" {
 
-#  triggers = {
-#    source_code = sha256(join("", [for f in fileset("/home/runner/work/housef2/housef2/frontend/src", "**/*"): filesha256("/home/runner/work/housef2/housef2/frontend/src/${f}")]))
-#  }
+  triggers = {
+    source_code = sha256(join("", [for f in fileset("/home/runner/work/housef2/housef2/frontend/src", "**/*"): filesha256("/home/runner/work/housef2/housef2/frontend/src/${f}")]))
+  }
 
   provisioner "local-exec" {
     command = <<EOT
