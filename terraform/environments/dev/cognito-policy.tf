@@ -1,6 +1,6 @@
 # IAM policy for Cognito management
 resource "aws_iam_policy" "cognito_management" {
-  name        = "cognito-management"
+  name        = "${var.project_name}-${local.environment}-cognito-management"
   description = "Policy for managing Cognito resources"
 
   policy = jsonencode({

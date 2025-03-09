@@ -108,6 +108,15 @@ module "cdn" {
   environment = local.environment
 }
 
+# Web Module
+module "web" {
+  source = "../../modules/web"
+
+  project_name = "${var.project_name}-dev"
+  environment = local.environment
+  web_bucket = module.storage.web_bucket
+}
+
 # Lambda permissions for API Gateway
 resource "aws_lambda_permission" "api_gateway" {
   for_each = module.lambda.function_names
