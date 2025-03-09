@@ -11,13 +11,13 @@ terraform {
 # Build process for web files
 resource "null_resource" "web_build" {
   triggers = {
-    source_code = sha256(join("", [for f in fileset("${path.root}/../../frontend/src", "**/*"): filesha256("${path.root}/../../frontend/src/${f}")]))
+    source_code = sha256(join("", [for f in fileset("${abspath(path.root)}/../../frontend/src", "**/*"): filesha256("${abspath(path.root)}/../../frontend/src/${f}")]))
   }
 
   provisioner "local-exec" {
-    working_dir = "${path.root}/../../frontend"
-    command     = <<EOT
-      npm install
+    command = <<EOT
+      cd ${abspath(path.root)}/../../frontend && \
+      npm install && \
       npm run build
     EOT
   }
@@ -25,13 +25,13 @@ resource "null_resource" "web_build" {
 
 # Upload built files to S3
 resource "aws_s3_object" "web_files" {
-  for_each = fileset("${path.root}/../../frontend/dist", "**/*")
+  for_each = fileset("${abspath(path.root)}/../../frontend/dist", "**/*")
 
   bucket       = var.web_bucket
   key          = each.value
-  source       = "${path.root}/../../frontend/dist/${each.value}"
+  source       = "${abspath(path.root)}/../../frontend/dist/${each.value}"
   content_type = lookup(local.mime_types, regex("\\.[^.]+$", each.value), "application/octet-stream")
-  etag         = filemd5("${path.root}/../../frontend/dist/${each.value}")
+  etag         = filemd5("${abspath(path.root)}/../../frontend/dist/${each.value}")
 
   depends_on = [null_resource.web_build]
 }

@@ -11,7 +11,8 @@ import {
   Toolbar,
   Typography,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  ListItemButton
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -70,18 +71,21 @@ export default function Layout({ children }: LayoutProps) {
       <List>
         {navItems.map((item) => (
           <ListItem
-            button
+            disablePadding
             key={item.path}
-            onClick={() => {
-              navigate(item.path);
-              if (isMobile) {
-                setMobileOpen(false);
-              }
-            }}
-            selected={location.pathname === item.path}
           >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.title} />
+            <ListItemButton
+              onClick={() => {
+                navigate(item.path);
+                if (isMobile) {
+                  setMobileOpen(false);
+                }
+              }}
+              selected={location.pathname === item.path}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.title} />
+            </ListItemButton>
           </ListItem>
         ))}
       </List>
