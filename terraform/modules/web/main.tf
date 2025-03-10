@@ -30,7 +30,8 @@ resource "null_resource" "web_build" {
         --exclude "*.html" --exclude "*.txt" && \
       aws s3 sync dist/ s3://${var.web_bucket} \
         --cache-control "no-cache" \
-        --include "*.html" --include "*.txt"
+        --include "*.html" --include "*.txt" && \
+      echo "Upload completed"
     EOT
   }
 }
