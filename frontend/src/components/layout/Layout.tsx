@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -16,7 +16,8 @@ import {
   Toolbar,
   Typography,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  CircularProgress
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -46,7 +47,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, signOut } = useAuth();
+  const { isAuthenticated, isLoading, user, error, signOut } = useAuth();
+
+  // Add debug logging
+  useEffect(() => {
+    console.log('Auth Debug:', {
+      isAuthenticated,
+      isLoading,
+      user,
+      error,
+      currentPath: location.pathname,
+      shouldShowLogin: !isAuthenticated && location.pathname !== '/forgot-password'
+    });
+  }, [isAuthenticated, isLoading, user, error, location.pathname]);
 
   const menuItems = [
     { text: 'Home', icon: <Home />, path: '/' },
@@ -99,8 +112,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     </div>
   );
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh'
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   // Show login screen if not authenticated
   if (!isAuthenticated && location.pathname !== '/forgot-password') {
+    console.log('Rendering login screen');
     return (
       <Box
         sx={{
@@ -125,13 +155,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 4 }}>
               Your personal finance management system
             </Typography>
-            <LoginForm />
+            {LoginForm ? (
+              <LoginForm />
+            ) : (
+              <Typography color="error">Error: LoginForm component not found</Typography>
+            )}
           </Paper>
         </Container>
       </Box>
     );
   }
 
+  console.log('Rendering main layout');
   // Show main layout when authenticated
   return (
     <Box sx={{ display: 'flex' }}>

@@ -26,45 +26,51 @@ resource "local_file" "frontend_env" {
   file_permission = "0644"
 }
 
-# Build frontend application
-resource "null_resource" "frontend_build" {
+# Build and deploy frontend application
+resource "null_resource" "frontend_deploy" {
   triggers = {
     env_file = local_file.frontend_env.content
+    build_time = timestamp() # Force rebuild on every apply during development
   }
 
   provisioner "local-exec" {
     working_dir = "${path.module}/../../../frontend"
     command     = <<-EOT
+      # Install dependencies
+      echo "Installing dependencies..."
       npm install --legacy-peer-deps
+
+      # Build the application
+      echo "Building application..."
       npm run build
+
+      # Sync with S3 bucket with proper content types
+      echo "Deploying to S3..."
+      aws s3 sync dist s3://${var.web_bucket} \
+        --delete \
+        --cache-control "max-age=31536000" \
+        --exclude "*.html" \
+        --exclude "*.json" \
+        --exclude "*.txt" \
+        --exclude "*.xml" \
+        --include "static/**/*"
+
+      # Upload HTML and config files with no-cache
+      aws s3 sync dist s3://${var.web_bucket} \
+        --delete \
+        --cache-control "no-cache" \
+        --exclude "*" \
+        --include "*.html" \
+        --include "*.json" \
+        --include "*.txt" \
+        --include "*.xml" \
+        --content-type "text/html" \
+        --content-type "application/json" \
+        --content-type "text/plain" \
+        --content-type "application/xml"
+
+      echo "Deployment complete!"
     EOT
-  }
-}
-
-# Upload built frontend to S3
-resource "aws_s3_object" "frontend_files" {
-  for_each = fileset("${path.module}/../../../frontend/dist", "**/*")
-
-  bucket       = var.web_bucket
-  key         = each.value
-  source      = "${path.module}/../../../frontend/dist/${each.value}"
-  etag        = filemd5("${path.module}/../../../frontend/dist/${each.value}")
-  content_type = lookup(local.mime_types, regex("\\.[^.]+$", each.value), null)
-
-  depends_on = [null_resource.frontend_build]
-}
-
-locals {
-  mime_types = {
-    ".html" = "text/html"
-    ".css"  = "text/css"
-    ".js"   = "application/javascript"
-    ".json" = "application/json"
-    ".png"  = "image/png"
-    ".jpg"  = "image/jpeg"
-    ".gif"  = "image/gif"
-    ".svg"  = "image/svg+xml"
-    ".ico"  = "image/x-icon"
   }
 }
 
