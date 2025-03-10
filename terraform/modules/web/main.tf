@@ -36,53 +36,6 @@ resource "null_resource" "web_build" {
   }
 }
 
-# Debug output for fileset
-output "debug_files" {
-  value = fileset("/home/runner/work/housef2/housef2/frontend/dist", "**/*")
-}
-
-# Debug output for S3 bucket
-output "debug_bucket" {
-  value = var.web_bucket
-}
-
-# Debug output for uploaded files
-output "debug_uploaded_files" {
-  value = [for file in aws_s3_object.web_files : file.key]
-}
-
-# Default index.html for root
-#resource "aws_s3_object" "index_html" {
-#  bucket       = var.web_bucket
-#  key          = "index.html"
-#  source       = "/home/runner/work/housef2/housef2/frontend/dist/index.html"
-#  content_type = "text/html"
-#  etag         = filemd5("/home/runner/work/housef2/housef2/frontend/dist/index.html")
-
-#  depends_on = [null_resource.web_build]
-#}
-
-# MIME type mapping
-locals {
-  mime_types = {
-    ".html" = "text/html"
-    ".css"  = "text/css"
-    ".js"   = "application/javascript"
-    ".json" = "application/json"
-    ".png"  = "image/png"
-    ".jpg"  = "image/jpeg"
-    ".gif"  = "image/gif"
-    ".svg"  = "image/svg+xml"
-    ".ico"  = "image/x-icon"
-    ".txt"  = "text/plain"
-    ".map"  = "application/json"
-    ".woff" = "font/woff"
-    ".woff2" = "font/woff2"
-    ".ttf"  = "font/ttf"
-    ".eot"  = "application/vnd.ms-fontobject"
-  }
-}
-
 # Variables
 variable "project_name" {
   description = "Project name for resource naming"
