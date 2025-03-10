@@ -5,6 +5,10 @@ import { theme } from './theme';
 import Layout from './components/layout/Layout';
 import Home from './pages/Home';
 import ImportWizard from './components/import/ImportWizard';
+import LoginForm from './components/auth/LoginForm';
+import ForgotPassword from './components/auth/ForgotPassword';
+import MFASetup from './components/auth/MFASetup';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 const App: React.FC = () => {
   return (
@@ -22,6 +26,16 @@ const App: React.FC = () => {
             <Route path="/analytics" element={<div>Analytics Page</div>} />
             <Route path="/reports" element={<div>Reports Page</div>} />
             <Route path="/settings" element={<div>Settings Page</div>} />
+            <Route path="/login" element={<LoginForm />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route
+              path="/setup-mfa"
+              element={
+                <ProtectedRoute>
+                  <MFASetup />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </Layout>
       </BrowserRouter>
