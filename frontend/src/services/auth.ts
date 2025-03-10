@@ -25,6 +25,7 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   role?: string;
+  mfaEnabled?: boolean;
 }
 
 class AuthService {
