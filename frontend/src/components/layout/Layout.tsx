@@ -4,6 +4,7 @@ import {
   AppBar,
   Box,
   Button,
+  Container,
   CssBaseline,
   Drawer,
   IconButton,
@@ -11,6 +12,7 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
+  Paper,
   Toolbar,
   Typography,
   useTheme,
@@ -30,6 +32,7 @@ import {
   Logout as LogoutIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import LoginForm from '../auth/LoginForm';
 
 const drawerWidth = 240;
 
@@ -96,11 +99,40 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     </div>
   );
 
-  if (!isAuthenticated && location.pathname !== '/login' && location.pathname !== '/forgot-password') {
-    navigate('/login');
-    return null;
+  // Show login screen if not authenticated
+  if (!isAuthenticated && location.pathname !== '/forgot-password') {
+    return (
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          bgcolor: 'background.default'
+        }}
+      >
+        <AppBar position="static" elevation={0} color="transparent">
+          <Toolbar>
+            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+              HouseF2
+            </Typography>
+          </Toolbar>
+        </AppBar>
+        <Container maxWidth="sm" sx={{ mt: 8 }}>
+          <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+            <Typography variant="h4" component="h1" align="center" gutterBottom>
+              Welcome to HouseF2
+            </Typography>
+            <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 4 }}>
+              Your personal finance management system
+            </Typography>
+            <LoginForm />
+          </Paper>
+        </Container>
+      </Box>
+    );
   }
 
+  // Show main layout when authenticated
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
@@ -124,23 +156,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {menuItems.find(item => item.path === location.pathname)?.text || 'HouseF2'}
           </Typography>
-          {isAuthenticated ? (
-            <Button
-              color="inherit"
-              onClick={signOut}
-              startIcon={<LogoutIcon />}
-            >
-              Logout
-            </Button>
-          ) : (
-            <Button
-              color="inherit"
-              onClick={() => navigate('/login')}
-              startIcon={<LoginIcon />}
-            >
-              Login
-            </Button>
-          )}
+          <Button
+            color="inherit"
+            onClick={signOut}
+            startIcon={<LogoutIcon />}
+          >
+            Logout
+          </Button>
         </Toolbar>
       </AppBar>
       <Box
