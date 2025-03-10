@@ -35,7 +35,7 @@ resource "null_resource" "frontend_build" {
   provisioner "local-exec" {
     working_dir = "${path.module}/../../../frontend"
     command     = <<-EOT
-      npm ci
+      npm install --legacy-peer-deps
       npm run build
     EOT
   }
