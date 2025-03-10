@@ -42,15 +42,15 @@ resource "aws_s3_object" "web_files" {
 }
 
 # Default index.html for root
-resource "aws_s3_object" "index_html" {
-  bucket       = var.web_bucket
-  key          = "index.html"
-  source       = "/home/runner/work/housef2/housef2/frontend/dist/index.html"
-  content_type = "text/html"
-  etag         = filemd5("/home/runner/work/housef2/housef2/frontend/dist/index.html")
+#resource "aws_s3_object" "index_html" {
+#  bucket       = var.web_bucket
+#  key          = "index.html"
+#  source       = "/home/runner/work/housef2/housef2/frontend/dist/index.html"
+#  content_type = "text/html"
+#  etag         = filemd5("/home/runner/work/housef2/housef2/frontend/dist/index.html")
 
-  depends_on = [null_resource.web_build]
-}
+#  depends_on = [null_resource.web_build]
+#}
 
 # MIME type mapping
 locals {
