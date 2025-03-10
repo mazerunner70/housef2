@@ -1,17 +1,21 @@
 import React from 'react';
-import { Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
+import FileUpload from './steps/FileUpload';
 
 interface ImportWizardProps {
   accountId: string;
   onComplete: () => void;
 }
 
-const ImportWizard: React.FC<ImportWizardProps> = ({ accountId }) => {
+const ImportWizard: React.FC<ImportWizardProps> = ({ accountId, onComplete }) => {
   return (
-    <div>
-      <Typography variant="h5">Import Transactions</Typography>
-      <Typography variant="body1">Account ID: {accountId}</Typography>
-    </div>
+    <Box>
+      <Typography variant="h5" gutterBottom>Import Transactions</Typography>
+      <FileUpload 
+        accountId={accountId} 
+        onUploadComplete={() => onComplete()} 
+      />
+    </Box>
   );
 };
 
