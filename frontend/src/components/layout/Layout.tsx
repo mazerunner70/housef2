@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
   Box,
+  Button,
   CssBaseline,
   Drawer,
   IconButton,
@@ -24,7 +25,9 @@ import {
   Analytics,
   Assessment,
   Settings,
-  CloudUpload
+  CloudUpload,
+  Login as LoginIcon,
+  Logout as LogoutIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -121,6 +124,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {menuItems.find(item => item.path === location.pathname)?.text || 'HouseF2'}
           </Typography>
+          {isAuthenticated ? (
+            <Button
+              color="inherit"
+              onClick={signOut}
+              startIcon={<LogoutIcon />}
+            >
+              Logout
+            </Button>
+          ) : (
+            <Button
+              color="inherit"
+              onClick={() => navigate('/login')}
+              startIcon={<LoginIcon />}
+            >
+              Login
+            </Button>
+          )}
         </Toolbar>
       </AppBar>
       <Box
