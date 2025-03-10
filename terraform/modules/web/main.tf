@@ -10,35 +10,22 @@ terraform {
 
 # Build process for web files
 resource "null_resource" "web_build" {
-
   triggers = {
     source_code = sha256(join("", [for f in fileset("/home/runner/work/housef2/housef2/frontend/src", "**/*"): filesha256("/home/runner/work/housef2/housef2/frontend/src/${f}")]))
   }
 
   provisioner "local-exec" {
     command = <<EOT
-      ls -l /home/runner/work/housef2/housef2 && \
-      cd ${abspath(path.root)}/../../../frontend && \
+      cd /home/runner/work/housef2/housef2/frontend && \
       npm install && \
       npm run build && \
-      ls -l /home/runner/work/housef2/housef2/frontend/dist
+      echo "Build completed. Contents of dist directory:" && \
+      ls -la dist/
     EOT
   }
 }
 
 # Upload built files to S3
-resource "null_resource" "debug_files" {
-  provisioner "local-exec" {
-    command = <<EOT
-      echo "Checking files in dist directory:" && \
-      ls -la /home/runner/work/housef2/housef2/frontend && \
-      echo "Trying fileset:" && \
-      find /home/runner/work/housef2/housef2/frontend -type f
-    EOT
-  }
-  depends_on = [null_resource.web_build]
-}
-
 resource "aws_s3_object" "web_files" {
   for_each = fileset("/home/runner/work/housef2/housef2/frontend/dist", "*")
 
@@ -48,7 +35,18 @@ resource "aws_s3_object" "web_files" {
   content_type = lookup(local.mime_types, regex("\\.[^.]+$", each.value), "application/octet-stream")
   etag         = filemd5("/home/runner/work/housef2/housef2/frontend/dist/${each.value}")
 
-  depends_on = [null_resource.web_build, null_resource.debug_files]
+  depends_on = [null_resource.web_build]
+}
+
+# Default index.html for root
+resource "aws_s3_object" "index_html" {
+  bucket       = var.web_bucket
+  key          = "index.html"
+  source       = "/home/runner/work/housef2/housef2/frontend/dist/index.html"
+  content_type = "text/html"
+  etag         = filemd5("/home/runner/work/housef2/housef2/frontend/dist/index.html")
+
+  depends_on = [null_resource.web_build]
 }
 
 # MIME type mapping

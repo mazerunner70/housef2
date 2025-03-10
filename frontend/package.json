@@ -1,38 +1,37 @@
 {
-  "name": "typescript-web-project",
+  "name": "housef2-frontend",
   "version": "1.0.0",
-  "description": "A TypeScript web application",
-  "main": "dist/index.js",
+  "description": "HouseF2 Frontend Application",
   "scripts": {
     "clean": "rm -rf dist",
     "start": "webpack serve --mode development",
-    "build": "npm run clean && webpack --mode production",
+    "build": "webpack --mode production",
     "test": "jest",
     "type-check": "tsc --noEmit"
   },
+  "dependencies": {
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.11.16",
+    "@mui/material": "^5.13.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.11.2"
+  },
   "devDependencies": {
+    "@types/react": "^18.2.6",
+    "@types/react-dom": "^18.2.4",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.24",
+    "css-loader": "^6.7.3",
     "html-webpack-plugin": "^5.6.0",
     "jest": "^29.7.0",
+    "style-loader": "^3.3.2",
     "ts-jest": "^29.1.2",
     "ts-loader": "^9.5.1",
-    "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "webpack": "^5.90.3",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.0.2"
-  },
-  "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^6.4.7",
-    "@mui/material": "^6.4.7",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^19.0.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-dropzone": "^14.3.8",
-    "react-router-dom": "^7.3.0"
   }
 }

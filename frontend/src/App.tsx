@@ -6,7 +6,7 @@ import Layout from './components/layout/Layout';
 import Home from './pages/Home';
 import ImportWizard from './components/import/ImportWizard';
 
-export default function App() {
+const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -27,4 +27,6 @@ export default function App() {
       </BrowserRouter>
     </ThemeProvider>
   );
-} 
+};
+
+export default App; 
