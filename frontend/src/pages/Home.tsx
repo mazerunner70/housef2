@@ -29,7 +29,7 @@ interface QuickActionCard {
   primary?: boolean;
 }
 
-export default function Home() {
+const Home: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
 
@@ -65,11 +65,11 @@ export default function Home() {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       {/* Welcome Section */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
+        <Typography variant="h4" component="h1" gutterBottom>
           Welcome to HouseF2
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
-          Manage your finances with ease
+        <Typography variant="body1">
+          Your personal finance management system
         </Typography>
       </Box>
 
@@ -194,4 +194,6 @@ export default function Home() {
       </Grid>
     </Container>
   );
-} 
+};
+
+export default Home; 

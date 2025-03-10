@@ -16,11 +16,14 @@ resource "null_resource" "web_build" {
 
   provisioner "local-exec" {
     command = <<EOT
+      echo "Starting frontend build process..." && \
       cd /home/runner/work/housef2/housef2/frontend && \
+      echo "Installing dependencies..." && \
       npm install && \
-      npm run build && \
+      echo "Building application..." && \
+      npm run build || (echo "Build failed!" && exit 1) && \
       echo "Build completed. Contents of dist directory:" && \
-      ls -la dist/
+      ls -la dist/ || (echo "No dist directory found!" && exit 1)
     EOT
   }
 }
