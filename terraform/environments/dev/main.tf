@@ -115,6 +115,10 @@ module "web" {
   project_name = "${var.project_name}-dev"
   environment = local.environment
   web_bucket = module.storage.web_bucket
+  aws_region = var.aws_region
+  cognito_user_pool_id = module.auth.user_pool_id
+  cognito_client_id = module.auth.user_pool_client_id
+  api_url = module.api.api_url
 }
 
 # Lambda permissions for API Gateway

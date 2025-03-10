@@ -5,34 +5,66 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.0"
+    }
   }
 }
 
-# Build process for web files
-resource "null_resource" "web_build" {
+# Generate .env file for frontend build
+resource "local_file" "frontend_env" {
+  filename = "${path.module}/../../../frontend/.env"
+  content  = <<-EOT
+    REACT_APP_AWS_REGION=${var.aws_region}
+    REACT_APP_COGNITO_USER_POOL_ID=${var.cognito_user_pool_id}
+    REACT_APP_COGNITO_CLIENT_ID=${var.cognito_client_id}
+    REACT_APP_API_URL=${var.api_url}
+  EOT
+
+  # Ensure proper file permissions
+  file_permission = "0644"
+}
+
+# Build frontend application
+resource "null_resource" "frontend_build" {
   triggers = {
-    source_code = sha256(join("", [for f in fileset("/home/runner/work/housef2/housef2/frontend/src", "**/*"): filesha256("/home/runner/work/housef2/housef2/frontend/src/${f}")]))
+    env_file = local_file.frontend_env.content
   }
 
   provisioner "local-exec" {
-    command = <<EOT
-      echo "Starting frontend build process..." && \
-      cd /home/runner/work/housef2/housef2/frontend && \
-      echo "Installing dependencies..." && \
-      npm install && \
-      echo "Building application..." && \
-      npm run build || (echo "Build failed!" && exit 1) && \
-      echo "Build completed. Contents of dist directory:" && \
-      ls -la dist/ || (echo "No dist directory found!" && exit 1) && \
-      echo "Uploading files to S3..." && \
-      aws s3 sync dist/ s3://${var.web_bucket} \
-        --cache-control "public, max-age=31536000" \
-        --exclude "*.html" --exclude "*.txt" && \
-      aws s3 sync dist/ s3://${var.web_bucket} \
-        --cache-control "no-cache" \
-        --include "*.html" --include "*.txt" && \
-      echo "Upload completed"
+    working_dir = "${path.module}/../../../frontend"
+    command     = <<-EOT
+      npm install
+      npm run build
     EOT
+  }
+}
+
+# Upload built frontend to S3
+resource "aws_s3_object" "frontend_files" {
+  for_each = fileset("${path.module}/../../../frontend/dist", "**/*")
+
+  bucket       = var.web_bucket
+  key         = each.value
+  source      = "${path.module}/../../../frontend/dist/${each.value}"
+  etag        = filemd5("${path.module}/../../../frontend/dist/${each.value}")
+  content_type = lookup(local.mime_types, regex("\\.[^.]+$", each.value), null)
+
+  depends_on = [null_resource.frontend_build]
+}
+
+locals {
+  mime_types = {
+    ".html" = "text/html"
+    ".css"  = "text/css"
+    ".js"   = "application/javascript"
+    ".json" = "application/json"
+    ".png"  = "image/png"
+    ".jpg"  = "image/jpeg"
+    ".gif"  = "image/gif"
+    ".svg"  = "image/svg+xml"
+    ".ico"  = "image/x-icon"
   }
 }
 
@@ -48,7 +80,27 @@ variable "environment" {
 }
 
 variable "web_bucket" {
-  description = "S3 bucket name for web files"
+  description = "S3 bucket name for web hosting"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "cognito_user_pool_id" {
+  description = "Cognito User Pool ID"
+  type        = string
+}
+
+variable "cognito_client_id" {
+  description = "Cognito User Pool Client ID"
+  type        = string
+}
+
+variable "api_url" {
+  description = "API Gateway URL"
   type        = string
 }
 

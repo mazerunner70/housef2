@@ -212,6 +212,193 @@ interface StorageMonitoring {
 }
 ```
 
+## User Data Isolation
+
+### Data Partitioning
+```typescript
+interface DataPartitioning {
+  // Primary key strategy for all tables
+  keyStrategy: {
+    partition: {
+      key: "userId";  // Ensures data isolation at storage level
+      type: "STRING";
+    };
+    sort: {
+      key: "resourceId";  // e.g., accountId, transactionId
+      type: "STRING";
+    };
+  };
+  
+  // Global Secondary Indexes
+  indexes: {
+    byResource: {
+      partition: "resourceType";
+      sort: "userId#resourceId";
+    };
+    byDate: {
+      partition: "userId";
+      sort: "createdAt";
+    };
+  };
+}
+
+// Access patterns for user data
+interface UserDataAccess {
+  // Required fields for all resources
+  mandatoryFields: {
+    userId: string;        // Owner of the resource
+    createdBy: string;     // User who created the resource
+    createdAt: string;     // Timestamp of creation
+    lastModifiedBy: string; // Last user to modify
+    lastModifiedAt: string; // Last modification timestamp
+  };
+  
+  // Access control lists for shared resources
+  accessControl: {
+    owner: string;         // Primary owner
+    sharedWith?: string[]; // Other users with access
+    permissions: {         // Granular permissions
+      read: string[];
+      write: string[];
+      admin: string[];
+    };
+  };
+}
+```
+
+### Query Patterns
+```typescript
+interface QueryPatterns {
+  // Single user queries
+  userQueries: {
+    getOwnedResources: {
+      keyCondition: "userId = :userId";
+      filterExpression?: string;
+    };
+    getSharedResources: {
+      indexName: "bySharing";
+      keyCondition: "sharedWith.contains(:userId)";
+    };
+  };
+  
+  // Batch operations
+  batchQueries: {
+    validateOwnership: boolean;  // Check ownership before batch ops
+    maxBatchSize: 25;           // Limit batch size for control
+  };
+}
+```
+
+### Data Access Layer
+```typescript
+interface DataAccessLayer {
+  // Protected resource definitions
+  protectedResources: {
+    accounts: {
+      prefix: "ACC#";
+      permissions: ['read', 'write', 'admin'] as const;
+      requiredFields: ['userId', 'accountId'];
+    };
+    transactions: {
+      prefix: "TXN#";
+      permissions: ['read', 'write'] as const;
+      requiredFields: ['userId', 'accountId', 'transactionId'];
+    };
+    settings: {
+      prefix: "SET#";
+      permissions: ['admin'] as const;
+      requiredFields: ['userId', 'settingId'];
+    };
+    imports: {
+      prefix: "IMP#";
+      permissions: ['write'] as const;
+      requiredFields: ['userId', 'importId', 'accountId'];
+    };
+  };
+
+  // Middleware for all data operations
+  middleware: {
+    preQuery: [
+      "validateUser",
+      "appendUserContext",
+      "checkPermissions"
+    ];
+    postQuery: [
+      "filterUserData",
+      "logAccess",
+      "checkIntegrity"
+    ];
+  };
+  
+  // Error handling for access violations
+  errorHandling: {
+    unauthorized: {
+      logLevel: "WARN";
+      action: "REJECT";
+      notification: boolean;
+    };
+    integrity: {
+      logLevel: "ERROR";
+      action: "ROLLBACK";
+      notification: boolean;
+    };
+  };
+}
+```
+
+### Implementation Examples
+```typescript
+// Example DynamoDB query with user isolation
+const getUserAccounts = async (userId: string): Promise<Account[]> => {
+  const params = {
+    TableName: "housef2-main",
+    KeyConditionExpression: "userId = :uid AND begins_with(resourceId, 'ACC#')",
+    ExpressionAttributeValues: {
+      ":uid": userId
+    }
+  };
+  return dynamoDB.query(params);
+};
+
+// Example transaction query with access control
+const getTransaction = async (
+  userId: string,
+  transactionId: string
+): Promise<Transaction | null> => {
+  const params = {
+    TableName: "housef2-main",
+    KeyConditionExpression: "userId = :uid AND resourceId = :tid",
+    FilterExpression: "OR sharedWith.contains(:uid)",
+    ExpressionAttributeValues: {
+      ":uid": userId,
+      ":tid": `TXN#${transactionId}`
+    }
+  };
+  return dynamoDB.query(params);
+};
+```
+
+### Backup Isolation
+```typescript
+interface BackupIsolation {
+  // Ensure backups maintain user isolation
+  backupStrategy: {
+    perUserBackups: boolean;     // Separate backup files per user
+    encryptionContext: {
+      userId: string;            // User-specific encryption
+      timestamp: string;
+    };
+  };
+  
+  // Recovery maintains isolation
+  recoveryStrategy: {
+    validateUserAccess: boolean;  // Check permissions during restore
+    maintainOwnership: boolean;   // Preserve original ownership
+    auditRecovery: boolean;      // Log all recovery operations
+  };
+}
+```
+
 ## Implementation Guidelines
 
 1. Backup Automation

@@ -144,6 +144,14 @@ interface ButtonProps {
   icon?: React.ReactNode;
 }
 
+// Data visibility wrapper
+interface DataVisibilityProps {
+  userId: string;
+  resourceOwnerId: string;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
 // Card component
 interface CardProps {
   title?: string;
@@ -152,13 +160,14 @@ interface CardProps {
   padding?: 'none' | 'sm' | 'md' | 'lg';
 }
 
-// Data display
+// Data display with user-specific filtering
 interface DataTableProps<T> {
   data: T[];
   columns: Column[];
   sorting?: SortConfig;
   pagination?: PaginationConfig;
   onRowClick?: (row: T) => void;
+  userId: string; // Current user's ID for filtering
 }
 ```
 
@@ -238,6 +247,154 @@ const media = {
 - Touch-friendly interaction targets
 - Swipe gestures for common actions
 
+## Authentication UI Components
+
+For detailed authentication implementation details, see [authentication.md](./authentication.md).
+
+### Login Form
+```typescript
+interface LoginFormProps {
+  onSubmit: (credentials: {
+    email: string;
+    password: string;
+    mfaCode?: string;
+  }) => Promise<void>;
+  isLoading: boolean;
+}
+
+const LoginFormStyles = css`
+  max-width: 400px;
+  margin: 0 auto;
+  padding: ${theme.spacing.xl};
+  
+  .mfa-section {
+    margin-top: ${theme.spacing.lg};
+  }
+  
+  .form-error {
+    color: ${theme.colors.error};
+    margin-top: ${theme.spacing.sm};
+  }
+`;
+```
+
+### Session Management
+```typescript
+interface AuthUIConfig {
+  loginRedirectPath: string;
+  logoutRedirectPath: string;
+  sessionTimeoutWarning: number; // minutes before session expiry
+  autoRefreshSession: boolean;
+}
+
+// Updated to match data strategy permissions
+interface ResourcePermission {
+  read: string[];
+  write: string[];
+  admin: string[];
+}
+
+const AuthenticatedRoute: React.FC<{
+  children: React.ReactNode;
+  requiredRole?: "ADMIN" | "USER";
+  // Added granular permissions
+  requiredPermissions?: {
+    resource: string;
+    type: keyof ResourcePermission;
+  };
+}>;
+
+// Resource protection configuration
+const protectedResources = {
+  accounts: {
+    routes: ['/accounts/*'],
+    permissions: ['read', 'write', 'admin'] as const
+  },
+  transactions: {
+    routes: ['/transactions/*'],
+    permissions: ['read', 'write'] as const
+  },
+  settings: {
+    routes: ['/settings/*'],
+    permissions: ['admin'] as const
+  },
+  import: {
+    routes: ['/import'],
+    permissions: ['write'] as const
+  }
+} as const;
+```
+
+### Security UI Elements
+- Session timeout warning modal
+- MFA setup and verification screens
+- Password reset flow
+- Account recovery interface
+- Security settings panel
+
+### Deep Linking & Route Protection
+
+The application implements deep linking support while maintaining secure authentication requirements as defined in [authentication.md](./authentication.md).
+
+```typescript
+interface DeepLinkConfig {
+  // Store intended destination for post-auth redirect
+  returnToPath: string | null;
+  // Query parameters to preserve
+  preserveQueryParams: boolean;
+  // Maximum age of stored deep link
+  maxStorageAge: number; // milliseconds
+}
+
+const protectedRoutePatterns = [
+  '/accounts/*',
+  '/transactions/*',
+  '/settings/*',
+  '/import'
+] as const;
+
+interface RouteAuthBehavior {
+  // Handle unauthenticated access attempts
+  onUnauthenticated: {
+    // Store deep link in session storage
+    storeIntendedRoute: boolean;
+    // Route to redirect to (usually login)
+    redirectTo: string;
+  };
+  // Handle authenticated but unauthorized access
+  onUnauthorized: {
+    // Route to redirect to (usually home/dashboard)
+    redirectTo: string;
+    // Whether to show error message
+    showError: boolean;
+  };
+}
+```
+
+#### Deep Linking Flow
+1. User attempts to access protected route (e.g., `/accounts/123`)
+2. If unauthenticated:
+   - Store intended route in session storage
+   - Redirect to login page
+3. After successful authentication:
+   - Check for stored deep link
+   - Validate deep link is still valid/allowed
+   - Redirect to intended route or fallback
+4. Clear stored deep link after successful navigation
+
+```typescript
+interface DeepLinkRestoreProps {
+  // Maximum age of stored deep link before falling back
+  maxAge: number;
+  // Routes that are valid deep link targets
+  allowedRoutes: string[];
+  // Default fallback if deep link is invalid/expired
+  fallbackRoute: string;
+  // Whether to preserve query parameters
+  preserveQuery: boolean;
+}
+```
+
 ## Animation System
 
 ### Transitions
@@ -285,5 +442,109 @@ const a11y = {
     white-space: nowrap;
     border: 0;
   `
+};
+```
+
+## Data Visibility & Access Control
+
+The application implements strict data visibility rules to ensure users can only access their own data, as defined in [authentication.md](./authentication.md).
+
+### User Context
+```typescript
+interface UserContext {
+  userId: string;
+  role: "ADMIN" | "USER";
+  permissions: string[];
+}
+
+// Provider for user-specific data access
+const UserDataProvider: React.FC<{
+  children: React.ReactNode;
+  userContext: UserContext;
+}>;
+```
+
+### Data Access Patterns
+```typescript
+interface DataAccessConfig {
+  // Filter queries to only show user's data
+  filterByUser: {
+    enabled: true;
+    userIdField: string; // Field name for user ownership
+  };
+  // Handle unauthorized access attempts
+  onUnauthorizedAccess: {
+    showError: boolean;
+    redirectTo: string;
+    logAttempt: boolean;
+  };
+}
+
+// Hook for accessing user-specific data
+const useUserData = <T>(
+  resourceType: string,
+  query: QueryParams
+): {
+  data: T[];
+  isLoading: boolean;
+  error?: Error;
+};
+```
+
+### Component Integration
+```typescript
+// Updated dashboard props with user context
+interface DashboardProps {
+  userId: string; // Current user's ID
+  accounts: AccountSummary[]; // Pre-filtered for user
+  recentTransactions: Transaction[]; // Pre-filtered for user
+  alerts: Alert[];
+}
+
+// Updated account detail props
+interface AccountDetailProps {
+  userId: string; // Current user's ID
+  accountId: string;
+  account?: Account; // Optional as it may be unauthorized
+  transactions?: Transaction[]; // Optional as it may be unauthorized
+  stats?: AccountStats; // Optional as it may be unauthorized
+  isAuthorized: boolean;
+}
+```
+
+### Error States
+```typescript
+interface UnauthorizedState {
+  type: 'UNAUTHORIZED_ACCESS';
+  message: string;
+  resourceType: string;
+  resourceId: string;
+}
+
+const UnauthorizedFallback: React.FC<{
+  state: UnauthorizedState;
+  onRedirect: () => void;
+}>;
+```
+
+### Usage Example
+```typescript
+// Example of a protected component
+const AccountView: React.FC<{ accountId: string }> = ({ accountId }) => {
+  const { userId } = useUserContext();
+  
+  return (
+    <DataVisibilityWrapper
+      userId={userId}
+      resourceOwnerId={account.userId}
+      fallback={<UnauthorizedFallback />}
+    >
+      <AccountDetail
+        userId={userId}
+        accountId={accountId}
+        // ... other props
+      />
+    </DataVisibilityWrapper>
+  );
 };
 ``` 
