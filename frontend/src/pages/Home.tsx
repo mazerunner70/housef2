@@ -20,6 +20,7 @@ import {
   Add as AddIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 interface QuickActionCard {
   title: string;
@@ -30,6 +31,7 @@ interface QuickActionCard {
 }
 
 const Home: React.FC = () => {
+  const { user } = useAuth();
   const theme = useTheme();
   const navigate = useNavigate();
 
@@ -63,15 +65,80 @@ const Home: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* Welcome Section */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Welcome to HouseF2
-        </Typography>
-        <Typography variant="body1">
-          Your personal finance management system
-        </Typography>
-      </Box>
+      <Typography variant="h4" gutterBottom>
+        Welcome back, {user?.firstName || 'User'}!
+      </Typography>
+
+      <Grid container spacing={3}>
+        {/* Quick Stats */}
+        <Grid item xs={12} md={4}>
+          <Paper
+            sx={{
+              p: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              height: 140,
+              bgcolor: theme.palette.primary.main,
+              color: 'white'
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              Total Balance
+            </Typography>
+            <Typography variant="h4">$0.00</Typography>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Paper
+            sx={{
+              p: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              height: 140,
+              bgcolor: theme.palette.secondary.main,
+              color: 'white'
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              Monthly Income
+            </Typography>
+            <Typography variant="h4">$0.00</Typography>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Paper
+            sx={{
+              p: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              height: 140,
+              bgcolor: theme.palette.success.main,
+              color: 'white'
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              Monthly Expenses
+            </Typography>
+            <Typography variant="h4">$0.00</Typography>
+          </Paper>
+        </Grid>
+
+        {/* Recent Transactions */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Recent Transactions
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                No recent transactions to display.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Quick Actions */}
       <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
