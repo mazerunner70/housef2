@@ -6,14 +6,18 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name].[contenthash].js',
-    clean: true
+    clean: true,
+    publicPath: '/'
+  },
+  resolve: {
+    extensions: ['.ts', '.tsx', '.js', '.jsx']
   },
   module: {
     rules: [
       {
-        test: /\.tsx?$/,
-        use: 'ts-loader',
-        exclude: /node_modules/
+        test: /\.(ts|tsx)$/,
+        exclude: /node_modules/,
+        use: 'ts-loader'
       },
       {
         test: /\.css$/,
@@ -21,12 +25,21 @@ module.exports = {
       }
     ]
   },
-  resolve: {
-    extensions: ['.tsx', '.ts', '.js']
-  },
   plugins: [
     new HtmlWebpackPlugin({
-      template: 'src/index.html'
+      template: './public/index.html',
+      favicon: './public/favicon.ico'
     })
-  ]
+  ],
+  devServer: {
+    historyApiFallback: true,
+    port: 3000,
+    hot: true,
+    open: true
+  },
+  optimization: {
+    splitChunks: {
+      chunks: 'all'
+    }
+  }
 }; 
