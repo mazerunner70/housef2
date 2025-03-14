@@ -8,7 +8,7 @@ interface Configuration extends WebpackConfiguration {
 }
 
 const config: Configuration = {
-  entry: './src/index.ts',
+  entry: './src/index.tsx',
   module: {
     rules: [
       {
@@ -24,6 +24,7 @@ const config: Configuration = {
   output: {
     filename: 'bundle.js',
     path: path.resolve(__dirname, 'dist'),
+    publicPath: '/',
   },
   plugins: [
     new HtmlWebpackPlugin({
@@ -34,6 +35,7 @@ const config: Configuration = {
     static: {
       directory: path.join(__dirname, 'dist'),
     },
+    historyApiFallback: true,
     compress: true,
     port: 3000,
   },
