@@ -5,6 +5,7 @@ import { theme } from './theme';
 import Layout from './components/layout/Layout';
 import Home from './pages/Home';
 import Settings from './pages/Settings';
+import TransactionsPage from './pages/Transactions';
 import ImportWizard from './components/import/ImportWizard';
 import LoginForm from './components/auth/LoginForm';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -21,7 +22,11 @@ const App: React.FC = () => {
           <Route path="/import" element={<ImportWizard accountId="demo" onComplete={() => {}} />} />
           <Route path="/accounts" element={<div>Accounts Page</div>} />
           <Route path="/accounts/new" element={<div>New Account Page</div>} />
-          <Route path="/transactions" element={<div>Transactions Page</div>} />
+          <Route path="/transactions" element={
+            <ProtectedRoute>
+              <TransactionsPage />
+            </ProtectedRoute>
+          } />
           <Route path="/categories" element={<div>Categories Page</div>} />
           <Route path="/analytics" element={<div>Analytics Page</div>} />
           <Route path="/reports" element={<div>Reports Page</div>} />

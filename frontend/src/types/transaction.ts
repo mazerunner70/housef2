@@ -5,6 +5,7 @@ export interface Transaction {
     description: string;
     category?: string;
     type: 'income' | 'expense';
+    notes?: string;
 }
 
 export interface TransactionImport {

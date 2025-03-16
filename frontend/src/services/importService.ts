@@ -15,6 +15,10 @@ export interface ImportStatus {
   createdAt: string;
   updatedAt: string;
   analysisData?: any;
+  error?: {
+    code: string;
+    message: string;
+  };
 }
 
 export interface AccountAssignment {
@@ -89,24 +93,23 @@ class ImportService {
 
   /**
    * Confirm an import
-   * @param accountId - The account ID
-   * @param uploadId - The upload ID
-   * @param confirmations - The user confirmations
-   * @param duplicateHandling - How to handle duplicates
+   * @param params - The confirmation parameters
    */
-  async confirmImport(
-    accountId: string, 
-    uploadId: string, 
-    confirmations: {
+  async confirmImport(params: {
+    accountId: string;
+    uploadId: string;
+    userConfirmations: {
       accountVerified: boolean;
       dateRangeVerified: boolean;
       samplesReviewed: boolean;
-    },
-    duplicateHandling: 'SKIP' | 'REPLACE' | 'MARK_DUPLICATE'
-  ): Promise<void> {
-    await this.api.post(`/accounts/${accountId}/imports/${uploadId}/confirm`, {
-      userConfirmations: confirmations,
-      duplicateHandling
+    };
+    duplicateHandling: 'SKIP' | 'REPLACE' | 'MARK_DUPLICATE';
+    notes?: string;
+  }): Promise<void> {
+    await this.api.post(`/accounts/${params.accountId}/imports/${params.uploadId}/confirm`, {
+      userConfirmations: params.userConfirmations,
+      duplicateHandling: params.duplicateHandling,
+      notes: params.notes
     });
   }
 
