@@ -15,14 +15,16 @@ resource "aws_cloudfront_origin_access_identity" "web" {
   comment  = "OAI for ${var.domain_name}"
 }
 
-# Frontend CloudFront Distribution
-resource "aws_cloudfront_distribution" "web" {
+# Consolidated CloudFront Distribution
+resource "aws_cloudfront_distribution" "consolidated" {
   provider            = aws.us_east_1
   enabled             = true
-  is_ipv6_enabled    = true
+  is_ipv6_enabled     = true
   default_root_object = "index.html"
-  price_class        = "PriceClass_100"
+  price_class         = "PriceClass_100"
+  aliases             = var.domain_name != "" ? [var.domain_name] : []
 
+  # S3 Origin for frontend
   origin {
     domain_name = var.s3_website_endpoint
     origin_id   = "S3-${var.web_bucket}"
@@ -35,12 +37,28 @@ resource "aws_cloudfront_distribution" "web" {
     }
   }
 
+  # API Gateway Origin
+  origin {
+    domain_name = replace(var.api_endpoint, "/^https?://([^/]*).*/", "$1")
+    origin_id   = "ApiGateway"
+    origin_path = "/${var.environment}"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  # Custom error response for SPA routing
   custom_error_response {
     error_code         = 404
     response_code      = 200
     response_page_path = "/index.html"
   }
 
+  # Default cache behavior for frontend content
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
@@ -60,45 +78,16 @@ resource "aws_cloudfront_distribution" "web" {
     max_ttl                = 86400
   }
 
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  viewer_certificate {
-    cloudfront_default_certificate = true
-  }
-}
-
-# API CloudFront Distribution
-resource "aws_cloudfront_distribution" "api" {
-  provider           = aws.us_east_1
-  enabled            = true
-  is_ipv6_enabled   = true
-  price_class       = "PriceClass_100"
-
-  origin {
-    domain_name = replace(var.api_endpoint, "/^https?://([^/]*).*/", "$1")
-    origin_id   = "ApiGateway"
-    origin_path = "/${var.environment}"
-
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-  }
-
-  default_cache_behavior {
+  # Cache behavior for API requests
+  ordered_cache_behavior {
+    path_pattern     = "/api/*"
     allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "ApiGateway"
 
     forwarded_values {
       query_string = true
-      headers      = ["Authorization"]
+      headers      = ["Authorization", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]
       cookies {
         forward = "all"
       }
@@ -118,6 +107,13 @@ resource "aws_cloudfront_distribution" "api" {
 
   viewer_certificate {
     cloudfront_default_certificate = true
+    acm_certificate_arn            = var.acm_certificate_arn != "" ? var.acm_certificate_arn : null
+    ssl_support_method             = var.acm_certificate_arn != "" ? "sni-only" : null
+  }
+
+  tags = {
+    Name        = "${var.domain_name}-distribution"
+    Environment = var.environment
   }
 }
 
@@ -139,6 +135,7 @@ resource "aws_s3_bucket_policy" "web" {
 
   depends_on = [aws_cloudfront_origin_access_identity.web]
 }
+
 # Variables
 variable "domain_name" {
   description = "Domain name for the application"
@@ -172,11 +169,17 @@ variable "environment" {
   type        = string
 }
 
-# Outputs
-output "cloudfront_domain" {
-  value = aws_cloudfront_distribution.web.domain_name
+variable "acm_certificate_arn" {
+  description = "ARN of ACM certificate for custom domain"
+  type        = string
+  default     = ""
 }
 
-output "api_cloudfront_domain" {
-  value = aws_cloudfront_distribution.api.domain_name
+# Outputs
+output "cloudfront_domain" {
+  value = aws_cloudfront_distribution.consolidated.domain_name
+}
+
+output "cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.consolidated.id
 } 

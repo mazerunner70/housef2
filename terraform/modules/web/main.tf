@@ -20,6 +20,7 @@ resource "local_file" "frontend_env" {
     REACT_APP_COGNITO_USER_POOL_ID=${var.cognito_user_pool_id}
     REACT_APP_COGNITO_CLIENT_ID=${var.cognito_client_id}
     REACT_APP_API_URL=${var.api_url}
+    # Note: The frontend code will add the /api prefix to all API requests
   EOT
 
   # Ensure proper file permissions

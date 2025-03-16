@@ -2,11 +2,21 @@ import { authService } from './auth';
 
 export class API {
   private baseUrl: string;
+  private apiPrefix: string = '/api';
 
   constructor() {
     this.baseUrl = window.env?.REACT_APP_API_URL || '';
     if (!this.baseUrl) {
       console.warn('API URL not found in environment variables');
+    }
+    
+    // If we're using the consolidated CloudFront distribution, 
+    // we need to add the /api prefix to all requests
+    if (!this.baseUrl.includes('/api')) {
+      console.log('Using consolidated CloudFront distribution with /api prefix');
+    } else {
+      // If the API URL already includes /api, don't add it again
+      this.apiPrefix = '';
     }
   }
 
@@ -44,7 +54,7 @@ export class API {
 
   async get(endpoint: string): Promise<any> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(`${this.baseUrl}${this.apiPrefix}${endpoint}`, {
       method: 'GET',
       headers
     });
@@ -58,7 +68,7 @@ export class API {
 
   async post(endpoint: string, data: any): Promise<any> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(`${this.baseUrl}${this.apiPrefix}${endpoint}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(data)
@@ -73,7 +83,7 @@ export class API {
 
   async put(endpoint: string, data: any): Promise<any> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(`${this.baseUrl}${this.apiPrefix}${endpoint}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify(data)
@@ -88,7 +98,7 @@ export class API {
 
   async delete(endpoint: string): Promise<any> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const response = await fetch(`${this.baseUrl}${this.apiPrefix}${endpoint}`, {
       method: 'DELETE',
       headers
     });

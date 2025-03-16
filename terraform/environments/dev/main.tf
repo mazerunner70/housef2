@@ -92,6 +92,7 @@ module "api" {
   import_upload_invoke_arn = module.lambda.import_upload_invoke_arn
   import_reassign_invoke_arn = module.lambda.import_reassign_invoke_arn
   import_delete_invoke_arn = module.lambda.import_delete_invoke_arn
+  api_domain_name = local.domain_name
 }
 
 # CDN Module
@@ -162,11 +163,7 @@ output "api_url" {
 }
 
 output "web_url" {
-  value = "https://${local.domain_name}"
-}
-
-output "api_domain" {
-  value = "https://api.${local.domain_name}"
+  value = "https://${module.cdn.cloudfront_domain}"
 }
 
 output "cognito_user_pool_id" {
