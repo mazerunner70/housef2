@@ -189,7 +189,16 @@ class AuthService {
         }
 
         this.getUserAttributes(cognitoUser)
-          .then(resolve)
+          .then(async (user) => {
+            // Check if MFA is enabled
+            try {
+              const mfaEnabled = await this.isMfaEnabled(cognitoUser);
+              user.mfaEnabled = mfaEnabled;
+            } catch (error) {
+              console.error('Error checking MFA status:', error);
+            }
+            resolve(user);
+          })
           .catch(reject);
       });
     });
@@ -229,7 +238,7 @@ class AuthService {
             case 'custom:prefname':
               user.preferredName = attr.getValue();
               break;
-            case 'custom:pref_name':
+            case 'custom:preferred_name':
               user.preferredName = attr.getValue();
               break;
             case 'custom:role':
@@ -239,6 +248,20 @@ class AuthService {
         });
 
         resolve(user);
+      });
+    });
+  }
+
+  private async isMfaEnabled(cognitoUser: CognitoUser): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      cognitoUser.getMFAOptions((err, mfaOptions) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        
+        // If MFA options exist and have at least one option, MFA is enabled
+        resolve(!!mfaOptions && mfaOptions.length > 0);
       });
     });
   }
@@ -395,6 +418,58 @@ class AuthService {
           resolve();
         });
       });
+    });
+  }
+
+  async signUp(userData: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    preferredName?: string;
+  }): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const attributeList = [
+        new CognitoUserAttribute({
+          Name: 'email',
+          Value: userData.email
+        }),
+        new CognitoUserAttribute({
+          Name: 'given_name',
+          Value: userData.firstName
+        }),
+        new CognitoUserAttribute({
+          Name: 'family_name',
+          Value: userData.lastName
+        })
+      ];
+
+      if (userData.preferredName) {
+        attributeList.push(
+          new CognitoUserAttribute({
+            Name: 'custom:prefname',
+            Value: userData.preferredName
+          }),
+          new CognitoUserAttribute({
+            Name: 'custom:pref_name',
+            Value: userData.preferredName
+          })
+        );
+      }
+
+      this.userPool.signUp(
+        userData.email,
+        userData.password,
+        attributeList,
+        [],
+        (err, result) => {
+          if (err) {
+            reject(this.handleAuthError(err));
+            return;
+          }
+          resolve();
+        }
+      );
     });
   }
 

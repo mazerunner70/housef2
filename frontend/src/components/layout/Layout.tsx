@@ -1,171 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import {
-  AppBar,
-  Box,
-  Button,
-  Container,
-  CssBaseline,
-  Drawer,
-  IconButton,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Paper,
-  Toolbar,
-  Typography,
-  useTheme,
-  useMediaQuery,
-  CircularProgress
+import React, { useState } from 'react';
+import { 
+  Box, 
+  CssBaseline, 
+  AppBar, 
+  Toolbar, 
+  IconButton, 
+  Typography, 
+  Button, 
+  Avatar, 
+  Menu, 
+  MenuItem, 
+  Divider,
+  ListItemIcon
 } from '@mui/material';
-import {
+import { 
   Menu as MenuIcon,
-  Home,
-  AccountBalance,
-  Receipt,
-  Category,
-  Analytics,
-  Assessment,
-  Settings,
-  CloudUpload,
-  Login as LoginIcon,
-  Logout as LogoutIcon
+  AccountCircle as AccountIcon,
+  Settings as SettingsIcon,
+  Logout as LogoutIcon,
+  Person as PersonIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import Sidebar from './Sidebar';
 import { useAuth } from '../../contexts/AuthContext';
-import LoginForm from '../auth/LoginForm';
-
-const drawerWidth = 240;
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
+const drawerWidth = 240;
+
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { isAuthenticated, isLoading, user, error, signOut } = useAuth();
-
-  // Add debug logging
-  useEffect(() => {
-    console.log('Auth Debug:', {
-      isAuthenticated,
-      isLoading,
-      user,
-      error,
-      currentPath: location.pathname,
-      shouldShowLogin: !isAuthenticated && location.pathname !== '/forgot-password'
-    });
-  }, [isAuthenticated, isLoading, user, error, location.pathname]);
-
-  // Handle authentication-based navigation
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated && !PUBLIC_ROUTES.includes(location.pathname)) {
-      navigate('/login', { state: { from: location } });
-    }
-  }, [isLoading, isAuthenticated, location.pathname, navigate]);
-
-  const menuItems = [
-    { text: 'Home', icon: <Home />, path: '/' },
-    { text: 'Accounts', icon: <AccountBalance />, path: '/accounts' },
-    { text: 'Transactions', icon: <Receipt />, path: '/transactions' },
-    { text: 'Categories', icon: <Category />, path: '/categories' },
-    { text: 'Import', icon: <CloudUpload />, path: '/import' },
-    { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
-    { text: 'Reports', icon: <Assessment />, path: '/reports' },
-    { text: 'Settings', icon: <Settings />, path: '/settings' }
-  ];
+  
+  const open = Boolean(anchorEl);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
+  
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+  
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
 
-  const drawer = (
-    <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap>
-          HouseF2
-        </Typography>
-      </Toolbar>
-      <List>
-        {menuItems.map((item) => (
-          <ListItem
-            key={item.text}
-            disablePadding
-          >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText 
-              primary={item.text}
-              onClick={() => {
-                navigate(item.path);
-                if (isMobile) {
-                  setMobileOpen(false);
-                }
-              }}
-              sx={{ 
-                cursor: 'pointer',
-                bgcolor: location.pathname === item.path ? 'action.selected' : 'transparent',
-                '&:hover': {
-                  bgcolor: 'action.hover'
-                }
-              }}
-            />
-          </ListItem>
-        ))}
-      </List>
-    </div>
-  );
+  const handleLogout = async () => {
+    try {
+      handleMenuClose();
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+  
+  const handleProfileClick = () => {
+    handleMenuClose();
+    navigate('/settings');
+  };
 
-  // Public routes that don't require authentication
-  const PUBLIC_ROUTES = ['/login', '/forgot-password'];
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '100vh'
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    );
+  // If user is not logged in, only render children (which should be login/register pages)
+  if (!currentUser) {
+    return <>{children}</>;
   }
+  
+  // Get user initials for avatar
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase();
+  };
 
-  // Show public pages without main layout
-  if (!isAuthenticated && PUBLIC_ROUTES.includes(location.pathname)) {
-    return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          bgcolor: 'background.default'
-        }}
-      >
-        <AppBar position="static" elevation={0} color="transparent">
-          <Toolbar>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              HouseF2
-            </Typography>
-          </Toolbar>
-        </AppBar>
-        <Container maxWidth="sm" sx={{ mt: 8 }}>
-          <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
-            {children}
-          </Paper>
-        </Container>
-      </Box>
-    );
-  }
-
-  // Show main layout when authenticated
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
@@ -173,7 +86,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         position="fixed"
         sx={{
           width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` }
+          ml: { sm: `${drawerWidth}px` },
         }}
       >
         <Toolbar>
@@ -187,55 +100,100 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {menuItems.find(item => item.path === location.pathname)?.text || 'HouseF2'}
+            Finance Tracker
           </Typography>
-          <Button
-            color="inherit"
-            onClick={signOut}
-            startIcon={<LogoutIcon />}
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <IconButton
+              onClick={handleMenuOpen}
+              size="small"
+              sx={{ ml: 2 }}
+              aria-controls={open ? 'account-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={open ? 'true' : undefined}
+            >
+              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.dark' }}>
+                {getInitials(currentUser.name)}
+              </Avatar>
+            </IconButton>
+          </Box>
+          <Menu
+            anchorEl={anchorEl}
+            id="account-menu"
+            open={open}
+            onClose={handleMenuClose}
+            onClick={handleMenuClose}
+            PaperProps={{
+              elevation: 0,
+              sx: {
+                overflow: 'visible',
+                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+                mt: 1.5,
+                '& .MuiAvatar-root': {
+                  width: 32,
+                  height: 32,
+                  ml: -0.5,
+                  mr: 1,
+                },
+                '&:before': {
+                  content: '""',
+                  display: 'block',
+                  position: 'absolute',
+                  top: 0,
+                  right: 14,
+                  width: 10,
+                  height: 10,
+                  bgcolor: 'background.paper',
+                  transform: 'translateY(-50%) rotate(45deg)',
+                  zIndex: 0,
+                },
+              },
+            }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            Logout
-          </Button>
+            <Box sx={{ px: 2, py: 1 }}>
+              <Typography variant="subtitle1" fontWeight="bold">
+                {currentUser.name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {currentUser.email}
+              </Typography>
+            </Box>
+            <Divider />
+            <MenuItem onClick={handleProfileClick}>
+              <ListItemIcon>
+                <PersonIcon fontSize="small" />
+              </ListItemIcon>
+              My Profile
+            </MenuItem>
+            <MenuItem onClick={() => { handleMenuClose(); navigate('/settings'); }}>
+              <ListItemIcon>
+                <SettingsIcon fontSize="small" />
+              </ListItemIcon>
+              Settings
+            </MenuItem>
+            <Divider />
+            <MenuItem onClick={handleLogout}>
+              <ListItemIcon>
+                <LogoutIcon fontSize="small" />
+              </ListItemIcon>
+              Logout
+            </MenuItem>
+          </Menu>
         </Toolbar>
       </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        {/* Mobile drawer */}
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true // Better open performance on mobile.
-          }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth }
-          }}
-        >
-          {drawer}
-        </Drawer>
-        {/* Desktop drawer */}
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth }
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
+      <Sidebar
+        drawerWidth={drawerWidth}
+        mobileOpen={mobileOpen}
+        handleDrawerToggle={handleDrawerToggle}
+      />
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: 3,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
-          mt: '64px' // Height of AppBar
+          mt: '64px', // AppBar height
         }}
       >
         {children}

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { styled } from '@mui/material/styles';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -16,41 +15,28 @@ import {
   Link
 } from '@mui/material';
 
-const Container = styled(Paper)(({ theme }) => ({
-  maxWidth: 400,
-  margin: '0 auto',
-  padding: theme.spacing(3),
-  display: 'flex',
-  flexDirection: 'column',
-  gap: theme.spacing(2)
-}));
-
-const steps = ['Request Reset', 'Enter Code', 'Set New Password'];
-
 const ForgotPassword: React.FC = () => {
-  const { forgotPassword, resetPassword } = useAuth();
+  const { resetPassword, confirmPasswordReset, loading } = useAuth();
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const steps = ['Request Reset', 'Enter Code', 'Set New Password'];
+
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
 
     try {
-      await forgotPassword(email);
+      await resetPassword(email);
       setActiveStep(1);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to request password reset');
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to request password reset');
     }
   };
 
@@ -66,17 +52,14 @@ const ForgotPassword: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
     setError(null);
 
     try {
-      await resetPassword(email, code, newPassword);
+      await confirmPasswordReset(email, code, newPassword);
       setSuccess(true);
       setActiveStep(3);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to reset password');
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset password');
     }
   };
 
@@ -99,17 +82,17 @@ const ForgotPassword: React.FC = () => {
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
+              disabled={loading}
               error={!!error}
             />
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              disabled={isLoading || !email}
+              disabled={loading || !email}
               sx={{ mt: 2 }}
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Send Reset Code'}
+              {loading ? <CircularProgress size={24} /> : 'Send Reset Code'}
             </Button>
           </Box>
         );
@@ -132,7 +115,7 @@ const ForgotPassword: React.FC = () => {
               name="code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              disabled={isLoading}
+              disabled={loading}
               error={!!error}
               inputProps={{
                 maxLength: 6,
@@ -143,7 +126,7 @@ const ForgotPassword: React.FC = () => {
               type="submit"
               fullWidth
               variant="contained"
-              disabled={isLoading || code.length !== 6}
+              disabled={loading || code.length !== 6}
               sx={{ mt: 2 }}
             >
               Next
@@ -175,7 +158,7 @@ const ForgotPassword: React.FC = () => {
               id="newPassword"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              disabled={isLoading}
+              disabled={loading}
               error={!!error}
             />
             <TextField
@@ -188,17 +171,17 @@ const ForgotPassword: React.FC = () => {
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={isLoading}
+              disabled={loading}
               error={!!error}
             />
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              disabled={isLoading || !newPassword || !confirmPassword}
+              disabled={loading || !newPassword || !confirmPassword}
               sx={{ mt: 2 }}
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Reset Password'}
+              {loading ? <CircularProgress size={24} /> : 'Reset Password'}
             </Button>
             <Button
               fullWidth
@@ -231,7 +214,17 @@ const ForgotPassword: React.FC = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: 8 }}>
-      <Container>
+      <Paper 
+        elevation={3} 
+        sx={{ 
+          maxWidth: 400, 
+          margin: '0 auto', 
+          padding: 3, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 2 
+        }}
+      >
         <Typography variant="h5" component="h1" align="center" gutterBottom>
           Reset Password
         </Typography>
@@ -250,21 +243,8 @@ const ForgotPassword: React.FC = () => {
           </Alert>
         )}
 
-        <Box sx={{ mt: 2 }}>{renderStepContent()}</Box>
-
-        {activeStep === 0 && (
-          <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <Link
-              component="button"
-              variant="body2"
-              onClick={() => navigate('/login')}
-              sx={{ textDecoration: 'none' }}
-            >
-              Back to Login
-            </Link>
-          </Box>
-        )}
-      </Container>
+        {renderStepContent()}
+      </Paper>
     </Box>
   );
 };

@@ -1,52 +1,118 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import { ThemeProvider, CssBaseline } from '@mui/material';
-import { theme } from './theme';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import Layout from './components/layout/Layout';
-import Home from './pages/Home';
-import Settings from './pages/Settings';
-import TransactionsPage from './pages/Transactions';
-import ImportWizard from './components/import/ImportWizard';
-import LoginForm from './components/auth/LoginForm';
-import ForgotPassword from './components/auth/ForgotPassword';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import MFASetup from './components/auth/MFASetup';
-import ProtectedRoute from './components/auth/ProtectedRoute';
+import Dashboard from './pages/Dashboard';
+import Transactions from './pages/Transactions';
+import Import from './pages/Import';
+import Settings from './pages/Settings';
+import { useAuth } from './contexts/AuthContext';
 
 const App: React.FC = () => {
+  const { currentUser } = useAuth();
+  
+  const theme = createTheme({
+    palette: {
+      mode: 'light',
+      primary: {
+        main: '#1976d2',
+      },
+      secondary: {
+        main: '#dc004e',
+      },
+    },
+  });
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/import" element={<ImportWizard accountId="demo" onComplete={() => {}} />} />
-          <Route path="/accounts" element={<div>Accounts Page</div>} />
-          <Route path="/accounts/new" element={<div>New Account Page</div>} />
-          <Route path="/transactions" element={
-            <ProtectedRoute>
-              <TransactionsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/categories" element={<div>Categories Page</div>} />
-          <Route path="/analytics" element={<div>Analytics Page</div>} />
-          <Route path="/reports" element={<div>Reports Page</div>} />
-          <Route path="/settings" element={
-            <ProtectedRoute>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/login" element={!currentUser ? <Login /> : <Navigate to="/" />} />
+        <Route path="/register" element={!currentUser ? <Register /> : <Navigate to="/" />} />
+        <Route path="/forgot-password" element={!currentUser ? <ForgotPassword /> : <Navigate to="/" />} />
+        <Route path="/reset-password" element={!currentUser ? <ResetPassword /> : <Navigate to="/" />} />
+        
+        {/* Protected routes with Layout */}
+        <Route path="/" element={
+          currentUser ? (
+            <Layout>
+              <Dashboard />
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+        <Route path="/transactions" element={
+          currentUser ? (
+            <Layout>
+              <Transactions />
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+        <Route path="/import" element={
+          currentUser ? (
+            <Layout>
+              <Import />
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+        <Route path="/settings" element={
+          currentUser ? (
+            <Layout>
               <Settings />
-            </ProtectedRoute>
-          } />
-          <Route path="/login" element={<LoginForm />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route
-            path="/setup-mfa"
-            element={
-              <ProtectedRoute>
-                <MFASetup />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </Layout>
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+        <Route path="/mfa-setup" element={
+          currentUser ? (
+            <Layout>
+              <MFASetup />
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+        <Route path="/accounts" element={
+          currentUser ? (
+            <Layout>
+              <div>Accounts Page</div>
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+        <Route path="/accounts/new" element={
+          currentUser ? (
+            <Layout>
+              <div>New Account Page</div>
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+        <Route path="/accounts/:id" element={
+          currentUser ? (
+            <Layout>
+              <div>Account Details Page</div>
+            </Layout>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+      </Routes>
     </ThemeProvider>
   );
 };

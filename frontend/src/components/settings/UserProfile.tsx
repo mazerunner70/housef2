@@ -27,27 +27,27 @@ interface ProfileFormData {
 }
 
 const UserProfile: React.FC = () => {
-  const { user, updatePreferredName } = useAuth();
+  const { currentUser, updateProfile } = useAuth();
   const [formData, setFormData] = useState<ProfileFormData>({
     firstName: '',
     lastName: '',
     preferredName: '',
     email: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (currentUser) {
       setFormData({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        preferredName: user.preferredName || '',
-        email: user.email || ''
+        firstName: currentUser.name.split(' ')[0] || '',
+        lastName: currentUser.name.split(' ').slice(1).join(' ') || '',
+        preferredName: currentUser.name || '',
+        email: currentUser.email || ''
       });
     }
-  }, [user]);
+  }, [currentUser]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -59,17 +59,21 @@ const UserProfile: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setLoading(true);
     setError(null);
+    setSuccess(false);
 
     try {
-      // Update preferred name using the auth service
-      await updatePreferredName(formData.preferredName);
+      // Update the user's profile
+      await updateProfile({
+        name: formData.preferredName || `${formData.firstName} ${formData.lastName}`
+      });
+      
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -77,7 +81,7 @@ const UserProfile: React.FC = () => {
     setSuccess(false);
   };
 
-  if (!user) {
+  if (!currentUser) {
     return (
       <Box sx={{ p: 3 }}>
         <Typography>Loading user profile...</Typography>
@@ -108,7 +112,7 @@ const UserProfile: React.FC = () => {
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={loading}
                 InputProps={{
                   readOnly: true, // First name is read-only as it's managed by Cognito
                 }}
@@ -123,7 +127,7 @@ const UserProfile: React.FC = () => {
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={loading}
                 InputProps={{
                   readOnly: true, // Last name is read-only as it's managed by Cognito
                 }}
@@ -138,7 +142,7 @@ const UserProfile: React.FC = () => {
                 name="preferredName"
                 value={formData.preferredName}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={loading}
                 helperText="This is how you'll be addressed throughout the application"
               />
             </Grid>
@@ -149,7 +153,7 @@ const UserProfile: React.FC = () => {
                 label="Email"
                 name="email"
                 value={formData.email}
-                disabled={isLoading}
+                disabled={loading}
                 InputProps={{
                   readOnly: true, // Email is read-only as it's managed by Cognito
                 }}
@@ -170,9 +174,9 @@ const UserProfile: React.FC = () => {
                 type="submit"
                 variant="contained"
                 color="primary"
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? <CircularProgress size={24} /> : 'Save Changes'}
+                {loading ? <CircularProgress size={24} /> : 'Save Changes'}
               </Button>
             </Grid>
           </Grid>

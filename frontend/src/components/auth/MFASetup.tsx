@@ -37,12 +37,11 @@ const QRContainer = styled(Box)(({ theme }) => ({
 const steps = ['Generate Secret', 'Scan QR Code', 'Verify Code'];
 
 const MFASetup: React.FC = () => {
-  const { setupMFA, verifyMFA } = useAuth();
+  const { setupMFA, verifyMFA, loading } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [secretCode, setSecretCode] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,7 +51,6 @@ const MFASetup: React.FC = () => {
   }, []);
 
   const generateSecretCode = async () => {
-    setIsLoading(true);
     setError(null);
     try {
       const secret = await setupMFA();
@@ -63,23 +61,18 @@ const MFASetup: React.FC = () => {
       const otpAuthUrl = `otpauth://totp/${appName}:${username}?secret=${secret}&issuer=${appName}`;
       setQrCodeUrl(otpAuthUrl);
       setActiveStep(1);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to generate secret code');
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate secret code');
     }
   };
 
   const handleVerification = async () => {
-    setIsLoading(true);
     setError(null);
     try {
       await verifyMFA(verificationCode);
       setActiveStep(3);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to verify code');
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to verify code');
     }
   };
 
@@ -133,7 +126,7 @@ const MFASetup: React.FC = () => {
               label="Verification Code"
               value={verificationCode}
               onChange={(e) => setVerificationCode(e.target.value)}
-              disabled={isLoading}
+              disabled={loading}
               error={!!error}
               helperText={error}
               inputProps={{
@@ -146,10 +139,10 @@ const MFASetup: React.FC = () => {
               color="primary"
               fullWidth
               onClick={handleVerification}
-              disabled={isLoading || verificationCode.length !== 6}
+              disabled={loading || verificationCode.length !== 6}
               sx={{ mt: 2 }}
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Verify'}
+              {loading ? <CircularProgress size={24} /> : 'Verify'}
             </Button>
           </>
         );

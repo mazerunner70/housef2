@@ -24,7 +24,8 @@ import {
   Divider,
   Button,
   CircularProgress,
-  Alert
+  Alert,
+  useTheme
 } from '@mui/material';
 import { 
   Search as SearchIcon,
@@ -48,6 +49,7 @@ import { transactionService } from '../services/transactionService';
 // Mock data for development
 const mockTransactions: Transaction[] = Array.from({ length: 50 }, (_, i) => ({
   id: `tx-${i}`,
+  accountId: 'account-123',
   date: new Date(2023, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1),
   amount: Math.random() > 0.7 
     ? Math.round(Math.random() * 1000 * 100) / 100 
@@ -158,7 +160,8 @@ const TransactionsPage: React.FC = () => {
   // State for transaction dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | undefined>(undefined);
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
+  const theme = useTheme();
 
   // Load transactions
   useEffect(() => {

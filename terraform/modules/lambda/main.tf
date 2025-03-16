@@ -203,23 +203,49 @@ resource "aws_lambda_function" "import_processor" {
 }
 
 resource "aws_lambda_function" "import_reassign" {
-  filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-import-reassign"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "handlers/import/reassign.handler"
-  runtime         = "nodejs18.x"
-  timeout         = 30
-  memory_size     = 256
-  depends_on      = [null_resource.lambda_build]  # Ensure build completes before creating Lambda
+  function_name = "${var.project_name}-import-reassign"
+  handler       = "lambda/handlers/import/reassign.handler"
+  runtime       = "nodejs18.x"
+  role          = aws_iam_role.lambda_role.arn
+  filename      = var.lambda_zip_path
+  timeout       = 30
+  memory_size   = 256
 
   environment {
     variables = {
+      MAIN_TABLE = var.main_table_name
       IMPORT_STATUS_TABLE = var.import_status_table_name
-      ENVIRONMENT = var.environment
+      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
+      STAGE = var.environment
     }
   }
 
-  source_code_hash = local.source_code_hash
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_logs
+  ]
+}
+
+resource "aws_lambda_function" "import_delete" {
+  function_name = "${var.project_name}-import-delete"
+  handler       = "lambda/handlers/import/delete.handler"
+  runtime       = "nodejs18.x"
+  role          = aws_iam_role.lambda_role.arn
+  filename      = var.lambda_zip_path
+  timeout       = 30
+  memory_size   = 256
+
+  environment {
+    variables = {
+      MAIN_TABLE = var.main_table_name
+      IMPORT_STATUS_TABLE = var.import_status_table_name
+      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
+      STAGE = var.environment
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_logs
+  ]
 }
 
 # CloudWatch Log Groups

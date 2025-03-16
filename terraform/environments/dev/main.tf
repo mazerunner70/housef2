@@ -91,6 +91,7 @@ module "api" {
   transaction_api_invoke_arn = module.lambda.transaction_api_invoke_arn
   import_upload_invoke_arn = module.lambda.import_upload_invoke_arn
   import_reassign_invoke_arn = module.lambda.import_reassign_invoke_arn
+  import_delete_invoke_arn = module.lambda.import_delete_invoke_arn
 }
 
 # CDN Module

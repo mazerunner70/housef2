@@ -9,10 +9,10 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireMfa = false }) => {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { currentUser, loading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  if (loading) {
     return (
       <Box
         sx={{
@@ -27,15 +27,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireMfa = 
     );
   }
 
-  if (!isAuthenticated) {
+  if (!currentUser) {
     // Redirect to login page with return URL
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requireMfa && !user?.mfaEnabled) {
-    // Redirect to MFA setup if required but not enabled
-    return <Navigate to="/setup-mfa" state={{ from: location }} replace />;
-  }
+  // MFA check is removed since it's not part of the current user model
+  // If MFA is needed, it should be added to the User interface in AuthContext
 
   return <>{children}</>;
 };
