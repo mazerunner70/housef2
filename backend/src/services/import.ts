@@ -564,7 +564,7 @@ export class ImportService {
     const importRecord = await this.getImportStatus(accountId, uploadId);
     
     // Delete the import record from DynamoDB
-    await this.dynamo.delete({
+    await this.dynamo.deleteItem({
       TableName: config.tables.imports,
       Key: {
         PK: `ACCOUNT#${accountId}`,
@@ -572,14 +572,25 @@ export class ImportService {
       }
     });
     
-    // If the import has a file in S3, delete it
-    if (importRecord.s3Key) {
-      try {
-        await this.s3.deleteFile(config.buckets.imports, importRecord.s3Key);
-      } catch (error) {
-        this.logger.warn('Failed to delete import file from S3', { error, accountId, uploadId });
-        // Continue even if S3 deletion fails
-      }
+    // Generate the S3 key for the file
+    try {
+      const s3Key = this.generateS3Key(
+        importRecord.GSI1PK.replace('USER#', ''), // Extract userId from GSI1PK
+        accountId,
+        uploadId,
+        importRecord.fileName
+      );
+      
+      // Delete the file from S3
+      await this.s3.deleteObject({
+        Bucket: config.s3.importBucket,
+        Key: s3Key
+      });
+      
+      this.logger.info('Import file deleted from S3', { accountId, uploadId, s3Key });
+    } catch (error) {
+      this.logger.warn('Failed to delete import file from S3', { error, accountId, uploadId });
+      // Continue even if S3 deletion fails
     }
     
     this.logger.info('Import deleted', { accountId, uploadId });

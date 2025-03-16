@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, GetObjectCommandOutput } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, GetObjectCommandOutput, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Logger } from './logger';
 import { Readable } from 'stream';
@@ -55,6 +55,28 @@ export class S3 {
       });
     } catch (error) {
       this.logger.error('Error getting file content', { error, bucket, key });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an object from S3
+   * @param params - The delete object parameters
+   */
+  async deleteObject(params: {
+    Bucket: string;
+    Key: string;
+  }): Promise<void> {
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: params.Bucket,
+        Key: params.Key
+      });
+
+      await this.client.send(command);
+      this.logger.info('Object deleted from S3', { bucket: params.Bucket, key: params.Key });
+    } catch (error) {
+      this.logger.error('Error deleting object from S3', { error, params });
       throw error;
     }
   }

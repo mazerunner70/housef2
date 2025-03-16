@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, PutCommand, UpdateCommand, GetCommand, QueryCommandOutput, PutCommandOutput, UpdateCommandOutput, GetCommandOutput } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, PutCommand, UpdateCommand, GetCommand, QueryCommandOutput, PutCommandOutput, UpdateCommandOutput, GetCommandOutput, DeleteCommand, DeleteCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { Logger } from './logger';
 
 export class DynamoDB {
@@ -63,6 +63,17 @@ export class DynamoDB {
       return result;
     } catch (error) {
       this.logger.error('DynamoDB get error', { error, params });
+      throw error;
+    }
+  }
+
+  async deleteItem(params: any): Promise<DeleteCommandOutput> {
+    try {
+      const command = new DeleteCommand(params);
+      const result = await this.client.send(command);
+      return result;
+    } catch (error) {
+      this.logger.error('DynamoDB delete error', { error, params });
       throw error;
     }
   }
