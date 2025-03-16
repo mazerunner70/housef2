@@ -7,10 +7,23 @@ import {
   ISignUpResult
 } from 'amazon-cognito-identity-js';
 
+declare global {
+  interface Window {
+    env: {
+      NODE_ENV: string;
+      REACT_APP_API_URL: string;
+      REACT_APP_COGNITO_USER_POOL_ID: string;
+      REACT_APP_COGNITO_CLIENT_ID: string;
+      REACT_APP_AWS_REGION: string;
+    }
+  }
+}
+
 export interface AuthCredentials {
   email: string;
   password: string;
   mfaCode?: string;
+  newPassword?: string;
 }
 
 export interface AuthTokens {
@@ -24,6 +37,7 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
+  preferredName?: string;
   role?: string;
   mfaEnabled?: boolean;
 }
@@ -32,11 +46,32 @@ class AuthService {
   private userPool: CognitoUserPool;
   private refreshTimer?: NodeJS.Timeout;
   private sessionTimeoutWarning = 5 * 60 * 1000; // 5 minutes
+  private cognitoUser: CognitoUser | null = null;
 
   constructor() {
+    // Debug log for environment variables
+    console.log('Environment variables:', {
+      userPoolId: window.env?.REACT_APP_COGNITO_USER_POOL_ID,
+      clientId: window.env?.REACT_APP_COGNITO_CLIENT_ID,
+      region: window.env?.REACT_APP_AWS_REGION,
+    });
+
+    if (!window.env) {
+      console.error('Environment variables not loaded. Using default configuration.');
+    }
+
+    const region = window.env?.REACT_APP_AWS_REGION || 'eu-west-2'; // Default to eu-west-2
+    const userPoolId = window.env?.REACT_APP_COGNITO_USER_POOL_ID;
+    const clientId = window.env?.REACT_APP_COGNITO_CLIENT_ID;
+
+    if (!userPoolId || !clientId) {
+      throw new Error('Required Cognito configuration is missing');
+    }
+
     this.userPool = new CognitoUserPool({
-      UserPoolId: process.env.REACT_APP_COGNITO_USER_POOL_ID!,
-      ClientId: process.env.REACT_APP_COGNITO_CLIENT_ID!
+      UserPoolId: userPoolId,
+      ClientId: clientId,
+      endpoint: `https://cognito-idp.${region}.amazonaws.com`
     });
 
     // Start session management
@@ -50,22 +85,61 @@ class AuthService {
         Password: credentials.password
       });
 
-      const cognitoUser = new CognitoUser({
+      // If we have a cognitoUser from a previous NEW_PASSWORD_REQUIRED challenge, use it
+      if (this.cognitoUser && credentials.newPassword) {
+        try {
+          // The API doesn't accept these fields back
+          const userAttributes = {
+            given_name: credentials.email.split('@')[0], // Use email username as given_name
+            family_name: credentials.email.split('@')[0], // Use email username as family_name
+          };
+          
+          this.cognitoUser.completeNewPasswordChallenge(
+            credentials.newPassword,
+            userAttributes,
+            {
+              onSuccess: async (session) => {
+                try {
+                  const user = await this.getUserAttributes(this.cognitoUser!);
+                  this.cognitoUser = null; // Clear the stored user after successful password change
+                  resolve(user);
+                } catch (error) {
+                  reject(error);
+                }
+              },
+              onFailure: (err) => {
+                reject(this.handleAuthError(err));
+              }
+            }
+          );
+        } catch (error) {
+          reject(this.handleAuthError(error));
+        }
+        return;
+      }
+
+      // Initial sign in attempt
+      this.cognitoUser = new CognitoUser({
         Username: credentials.email,
         Pool: this.userPool
       });
 
-      cognitoUser.authenticateUser(authData, {
+      this.cognitoUser.authenticateUser(authData, {
         onSuccess: async (session) => {
           try {
-            const user = await this.getUserAttributes(cognitoUser);
+            const user = await this.getUserAttributes(this.cognitoUser!);
             resolve(user);
           } catch (error) {
             reject(error);
           }
         },
         onFailure: (err) => {
+          this.cognitoUser = null;
           reject(this.handleAuthError(err));
+        },
+        newPasswordRequired: (userAttributes, requiredAttributes) => {
+          // Don't attempt to change password here, just notify the UI
+          reject(new Error('NEW_PASSWORD_REQUIRED'));
         },
         mfaRequired: (challengeName, challengeParameters) => {
           if (!credentials.mfaCode) {
@@ -73,10 +147,10 @@ class AuthService {
             return;
           }
 
-          cognitoUser.sendMFACode(credentials.mfaCode, {
+          this.cognitoUser!.sendMFACode(credentials.mfaCode, {
             onSuccess: async (session) => {
               try {
-                const user = await this.getUserAttributes(cognitoUser);
+                const user = await this.getUserAttributes(this.cognitoUser!);
                 resolve(user);
               } catch (error) {
                 reject(error);
@@ -92,11 +166,11 @@ class AuthService {
   }
 
   async signOut(): Promise<void> {
-    const cognitoUser = this.userPool.getCurrentUser();
-    if (cognitoUser) {
-      cognitoUser.signOut();
-      this.clearSessionRefresh();
+    if (this.cognitoUser) {
+      this.cognitoUser.signOut();
     }
+    this.cognitoUser = null;
+    this.clearSessionRefresh();
   }
 
   async getCurrentUser(): Promise<AuthUser> {
@@ -151,6 +225,9 @@ class AuthService {
               break;
             case 'family_name':
               user.lastName = attr.getValue();
+              break;
+            case 'preferred_name':
+              user.preferredName = attr.getValue();
               break;
             case 'custom:role':
               user.role = attr.getValue();
@@ -281,6 +358,39 @@ class AuthService {
     });
   }
 
+  async updatePreferredName(preferredName: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const cognitoUser = this.userPool.getCurrentUser();
+      
+      if (!cognitoUser) {
+        reject(new Error('No user found'));
+        return;
+      }
+
+      cognitoUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
+        if (err || !session) {
+          reject(err || new Error('Invalid session'));
+          return;
+        }
+
+        const attributes = [
+          new CognitoUserAttribute({
+            Name: 'preferred_name',
+            Value: preferredName
+          })
+        ];
+
+        cognitoUser.updateAttributes(attributes, (err) => {
+          if (err) {
+            reject(this.handleAuthError(err));
+            return;
+          }
+          resolve();
+        });
+      });
+    });
+  }
+
   private setupSessionRefresh(): void {
     // Clear any existing timer
     this.clearSessionRefresh();
@@ -316,9 +426,21 @@ class AuthService {
   }
 
   private handleAuthError(error: any): Error {
-    console.error('Auth error:', error);
+    console.error('Auth service error:', {
+      originalError: error,
+      code: error.code,
+      message: error.message,
+      name: error.name,
+      fullError: JSON.stringify(error, null, 2)
+    });
     
     if (error.code === 'NotAuthorizedException') {
+      if (error.message.includes('Password attempts exceeded')) {
+        return new Error('Too many failed attempts. Please try again later.');
+      }
+      if (error.message.includes('Cannot modify an already provided email')) {
+        return new Error('Unable to change password. Please try signing in again.');
+      }
       return new Error('Invalid credentials');
     }
     if (error.code === 'UserNotFoundException') {
@@ -328,10 +450,16 @@ class AuthService {
       return new Error('Invalid verification code');
     }
     if (error.code === 'PasswordResetRequiredException') {
-      return new Error('Password reset required');
+      return new Error('Please sign in with your temporary password to set a new password');
     }
     if (error.code === 'UserNotConfirmedException') {
       return new Error('User not confirmed');
+    }
+    if (error.code === 'InvalidPasswordException') {
+      return new Error('Password does not meet requirements. Password must have uppercase, lowercase, numbers, and special characters.');
+    }
+    if (error.code === 'LimitExceededException') {
+      return new Error('Too many attempts. Please try again later.');
     }
 
     return new Error(error.message || 'An error occurred during authentication');

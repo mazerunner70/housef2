@@ -12,6 +12,11 @@ interface AuthContextType {
   verifyMFA: (code: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
+  updatePreferredName: (preferredName: string) => Promise<void>;
+  currentEmail: string;
+  setCurrentEmail: (email: string) => void;
+  tempPassword: string;
+  setTempPassword: (password: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,6 +25,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentEmail, setCurrentEmail] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
 
   useEffect(() => {
     checkAuthState();
@@ -133,6 +140,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updatePreferredName = async (preferredName: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await authService.updatePreferredName(preferredName);
+      // Update user state to reflect the new preferred name
+      await checkAuthState();
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      }
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const value = {
     user,
     isAuthenticated: !!user,
@@ -143,7 +167,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setupMFA,
     verifyMFA,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    updatePreferredName,
+    currentEmail,
+    setCurrentEmail,
+    tempPassword,
+    setTempPassword
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

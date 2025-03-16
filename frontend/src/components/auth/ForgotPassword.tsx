@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
 import {
   Box,
@@ -11,7 +12,8 @@ import {
   Alert,
   Stepper,
   Step,
-  StepLabel
+  StepLabel,
+  Link
 } from '@mui/material';
 
 const Container = styled(Paper)(({ theme }) => ({
@@ -27,6 +29,7 @@ const steps = ['Request Reset', 'Enter Code', 'Set New Password'];
 
 const ForgotPassword: React.FC = () => {
   const { forgotPassword, resetPassword } = useAuth();
+  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -55,6 +58,11 @@ const ForgotPassword: React.FC = () => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long');
       return;
     }
 
@@ -140,6 +148,14 @@ const ForgotPassword: React.FC = () => {
             >
               Next
             </Button>
+            <Button
+              fullWidth
+              variant="text"
+              onClick={() => setActiveStep(0)}
+              sx={{ mt: 1 }}
+            >
+              Back
+            </Button>
           </Box>
         );
 
@@ -184,22 +200,29 @@ const ForgotPassword: React.FC = () => {
             >
               {isLoading ? <CircularProgress size={24} /> : 'Reset Password'}
             </Button>
+            <Button
+              fullWidth
+              variant="text"
+              onClick={() => setActiveStep(1)}
+              sx={{ mt: 1 }}
+            >
+              Back
+            </Button>
           </Box>
         );
 
       case 3:
         return (
           <Box>
-            <Alert severity="success">
-              Your password has been successfully reset. You can now log in with your new password.
+            <Alert severity="success" sx={{ mb: 2 }}>
+              Your password has been successfully reset!
             </Alert>
             <Button
               fullWidth
               variant="contained"
-              href="/login"
-              sx={{ mt: 2 }}
+              onClick={() => navigate('/login')}
             >
-              Go to Login
+              Return to Login
             </Button>
           </Box>
         );
@@ -207,27 +230,42 @@ const ForgotPassword: React.FC = () => {
   };
 
   return (
-    <Container>
-      <Typography variant="h5" component="h1" align="center" gutterBottom>
-        Reset Password
-      </Typography>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: 8 }}>
+      <Container>
+        <Typography variant="h5" component="h1" align="center" gutterBottom>
+          Reset Password
+        </Typography>
 
-      <Stepper activeStep={activeStep} alternativeLabel>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+        <Stepper activeStep={activeStep} alternativeLabel>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+        {error && (
+          <Alert severity="error" onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
 
-      <Box sx={{ mt: 2 }}>{renderStepContent()}</Box>
-    </Container>
+        <Box sx={{ mt: 2 }}>{renderStepContent()}</Box>
+
+        {activeStep === 0 && (
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Link
+              component="button"
+              variant="body2"
+              onClick={() => navigate('/login')}
+              sx={{ textDecoration: 'none' }}
+            >
+              Back to Login
+            </Link>
+          </Box>
+        )}
+      </Container>
+    </Box>
   );
 };
 

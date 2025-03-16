@@ -1,7 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import Layout from './components/layout/Layout';
+import { AuthProvider } from './contexts/AuthContext';
+import App from './App';
 
 const container = document.getElementById('root');
 if (!container) {
@@ -11,10 +12,10 @@ if (!container) {
 const root = createRoot(container);
 root.render(
     <React.StrictMode>
-        <BrowserRouter>
-            <Layout>
-                {/* Your routes will go here */}
-            </Layout>
-        </BrowserRouter>
+        <AuthProvider>
+            <BrowserRouter>
+                <App />
+            </BrowserRouter>
+        </AuthProvider>
     </React.StrictMode>
 ); 

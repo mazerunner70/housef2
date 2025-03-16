@@ -62,6 +62,18 @@ resource "aws_cognito_user_pool" "main" {
     }
   }
 
+  schema {
+    attribute_data_type = "String"
+    name               = "preferred_name"
+    required           = false
+    mutable           = true
+
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 255
+    }
+  }
+
   admin_create_user_config {
     allow_admin_create_user_only = true
   }
@@ -75,7 +87,7 @@ resource "aws_cognito_user_pool_client" "main" {
   generate_secret = false
   
   explicit_auth_flows = [
-    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
 

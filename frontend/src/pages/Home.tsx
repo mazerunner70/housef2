@@ -66,7 +66,7 @@ const Home: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" gutterBottom>
-        Welcome back, {user?.firstName || 'User'}!
+        Welcome back, {user?.preferredName || user?.firstName || 'User'}!
       </Typography>
 
       <Grid container spacing={3}>

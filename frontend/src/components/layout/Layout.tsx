@@ -61,6 +61,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     });
   }, [isAuthenticated, isLoading, user, error, location.pathname]);
 
+  // Handle authentication-based navigation
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !PUBLIC_ROUTES.includes(location.pathname)) {
+      navigate('/login', { state: { from: location } });
+    }
+  }, [isLoading, isAuthenticated, location.pathname, navigate]);
+
   const menuItems = [
     { text: 'Home', icon: <Home />, path: '/' },
     { text: 'Accounts', icon: <AccountBalance />, path: '/accounts' },
@@ -112,6 +119,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     </div>
   );
 
+  // Public routes that don't require authentication
+  const PUBLIC_ROUTES = ['/login', '/forgot-password'];
+
   // Show loading state
   if (isLoading) {
     return (
@@ -128,9 +138,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
   }
 
-  // Show login screen if not authenticated
-  if (!isAuthenticated && location.pathname !== '/forgot-password') {
-    console.log('Rendering login screen');
+  // Show public pages without main layout
+  if (!isAuthenticated && PUBLIC_ROUTES.includes(location.pathname)) {
     return (
       <Box
         sx={{
@@ -149,24 +158,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </AppBar>
         <Container maxWidth="sm" sx={{ mt: 8 }}>
           <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
-            <Typography variant="h4" component="h1" align="center" gutterBottom>
-              Welcome to HouseF2
-            </Typography>
-            <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 4 }}>
-              Your personal finance management system
-            </Typography>
-            {LoginForm ? (
-              <LoginForm />
-            ) : (
-              <Typography color="error">Error: LoginForm component not found</Typography>
-            )}
+            {children}
           </Paper>
         </Container>
       </Box>
     );
   }
 
-  console.log('Rendering main layout');
   // Show main layout when authenticated
   return (
     <Box sx={{ display: 'flex' }}>

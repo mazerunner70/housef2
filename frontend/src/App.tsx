@@ -4,6 +4,7 @@ import { ThemeProvider, CssBaseline } from '@mui/material';
 import { theme } from './theme';
 import Layout from './components/layout/Layout';
 import Home from './pages/Home';
+import Settings from './pages/Settings';
 import ImportWizard from './components/import/ImportWizard';
 import LoginForm from './components/auth/LoginForm';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -24,7 +25,11 @@ const App: React.FC = () => {
           <Route path="/categories" element={<div>Categories Page</div>} />
           <Route path="/analytics" element={<div>Analytics Page</div>} />
           <Route path="/reports" element={<div>Reports Page</div>} />
-          <Route path="/settings" element={<div>Settings Page</div>} />
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          } />
           <Route path="/login" element={<LoginForm />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route
