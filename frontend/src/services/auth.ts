@@ -226,6 +226,9 @@ class AuthService {
             case 'family_name':
               user.lastName = attr.getValue();
               break;
+            case 'custom:prefname':
+              user.preferredName = attr.getValue();
+              break;
             case 'custom:pref_name':
               user.preferredName = attr.getValue();
               break;
@@ -374,6 +377,10 @@ class AuthService {
         }
 
         const attributes = [
+          new CognitoUserAttribute({
+            Name: 'custom:prefname',
+            Value: preferredName
+          }),
           new CognitoUserAttribute({
             Name: 'custom:pref_name',
             Value: preferredName
