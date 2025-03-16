@@ -202,6 +202,26 @@ resource "aws_lambda_function" "import_processor" {
   source_code_hash = local.source_code_hash
 }
 
+resource "aws_lambda_function" "import_reassign" {
+  filename         = var.lambda_zip_path
+  function_name    = "${var.project_name}-import-reassign"
+  role            = aws_iam_role.lambda_role.arn
+  handler         = "handlers/import/reassign.handler"
+  runtime         = "nodejs18.x"
+  timeout         = 30
+  memory_size     = 256
+  depends_on      = [null_resource.lambda_build]  # Ensure build completes before creating Lambda
+
+  environment {
+    variables = {
+      IMPORT_STATUS_TABLE = var.import_status_table_name
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  source_code_hash = local.source_code_hash
+}
+
 # CloudWatch Log Groups
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   for_each = toset([

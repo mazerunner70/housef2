@@ -64,7 +64,7 @@ resource "aws_cognito_user_pool" "main" {
 
   schema {
     attribute_data_type = "String"
-    name               = "preferred_name"
+    name               = "custom:preferred_name"
     required           = false
     mutable           = true
 

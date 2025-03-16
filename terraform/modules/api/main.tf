@@ -40,6 +40,18 @@ resource "aws_api_gateway_resource" "imports" {
   path_part   = "imports"
 }
 
+resource "aws_api_gateway_resource" "import" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.imports.id
+  path_part   = "{uploadId}"
+}
+
+resource "aws_api_gateway_resource" "reassign" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_resource.import.id
+  path_part   = "reassign"
+}
+
 # Methods
 resource "aws_api_gateway_method" "get_accounts" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
@@ -100,6 +112,28 @@ resource "aws_api_gateway_integration" "post_import" {
   integration_http_method = "POST"
 }
 
+resource "aws_api_gateway_method" "post_reassign" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.reassign.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+
+  request_parameters = {
+    "method.request.path.accountId" = true,
+    "method.request.path.uploadId" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "post_reassign" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.reassign.id
+  http_method = aws_api_gateway_method.post_reassign.http_method
+  type        = "AWS_PROXY"
+  uri         = var.import_reassign_invoke_arn
+  integration_http_method = "POST"
+}
+
 # CORS Configuration
 resource "aws_api_gateway_method" "options_accounts" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
@@ -153,6 +187,7 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.get_accounts,
     aws_api_gateway_integration.get_transactions,
     aws_api_gateway_integration.post_import,
+    aws_api_gateway_integration.post_reassign,
     aws_api_gateway_integration.options_accounts
   ]
 
@@ -195,6 +230,11 @@ variable "transaction_api_invoke_arn" {
 
 variable "import_upload_invoke_arn" {
   description = "Import Upload Lambda invoke ARN"
+  type        = string
+}
+
+variable "import_reassign_invoke_arn" {
+  description = "Import Reassign Lambda invoke ARN"
   type        = string
 }
 

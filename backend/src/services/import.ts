@@ -486,4 +486,72 @@ export class ImportService {
     const bucketName = process.env.IMPORT_BUCKET || 'housef2-imports';
     return await this.s3.getFileContent(bucketName, key);
   }
+
+  /**
+   * Update the account assignment for an import
+   * @param params - The parameters for updating the account assignment
+   */
+  async updateAccountAssignment(params: {
+    uploadId: string;
+    currentAccountId: string;
+    newAccountId: string;
+    userId: string;
+  }) {
+    const { uploadId, currentAccountId, newAccountId, userId } = params;
+    
+    // First, get the current import status to verify it exists
+    const importRecord = await this.getImportStatus(currentAccountId, uploadId);
+    
+    if (!importRecord) {
+      throw new ValidationError(`Import with ID ${uploadId} not found for account ${currentAccountId}`);
+    }
+    
+    // Only allow reassignment if the import is in certain states
+    const allowedStates = ['PENDING', 'ANALYZED', 'FAILED'];
+    if (!allowedStates.includes(importRecord.status)) {
+      throw new ValidationError(`Cannot reassign import in ${importRecord.status} state. Import must be in one of these states: ${allowedStates.join(', ')}`);
+    }
+    
+    // Create a new record with the new account ID
+    await this.dynamo.update({
+      TableName: config.tables.imports,
+      Key: {
+        PK: `IMPORT#${uploadId}`,
+        SK: `METADATA#${uploadId}`
+      },
+      UpdateExpression: 'SET #accountId = :newAccountId, #updatedAt = :updatedAt, #updatedBy = :updatedBy, #history = list_append(if_not_exists(#history, :emptyList), :historyEntry)',
+      ExpressionAttributeNames: {
+        '#accountId': 'AccountId',
+        '#updatedAt': 'UpdatedAt',
+        '#updatedBy': 'UpdatedBy',
+        '#history': 'AccountHistory'
+      },
+      ExpressionAttributeValues: {
+        ':newAccountId': newAccountId,
+        ':updatedAt': new Date().toISOString(),
+        ':updatedBy': userId,
+        ':emptyList': [],
+        ':historyEntry': [{
+          timestamp: new Date().toISOString(),
+          previousAccountId: currentAccountId,
+          newAccountId: newAccountId,
+          updatedBy: userId
+        }]
+      }
+    });
+    
+    this.logger.info('Updated account assignment', {
+      uploadId,
+      previousAccountId: currentAccountId,
+      newAccountId,
+      updatedBy: userId
+    });
+    
+    return {
+      uploadId,
+      accountId: newAccountId,
+      status: importRecord.status,
+      message: `Import successfully reassigned from account ${currentAccountId} to account ${newAccountId}`
+    };
+  }
 } 

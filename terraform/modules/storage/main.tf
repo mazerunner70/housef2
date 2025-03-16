@@ -84,6 +84,23 @@ resource "aws_dynamodb_table" "import_status" {
     type = "S"
   }
 
+  attribute {
+    name = "AccountId"
+    type = "S"
+  }
+
+  attribute {
+    name = "Status"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "AccountIndex"
+    hash_key        = "AccountId"
+    range_key       = "Status"
+    projection_type = "ALL"
+  }
+
   point_in_time_recovery {
     enabled = true
   }

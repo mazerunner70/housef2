@@ -49,6 +49,7 @@ module "api" {
   account_api_invoke_arn = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${module.lambda.function_names.account_api}/invocations"
   transaction_api_invoke_arn = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${module.lambda.function_names.transaction_api}/invocations"
   import_upload_invoke_arn = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${module.lambda.function_names.import_upload}/invocations"
+  import_reassign_invoke_arn = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${module.lambda.function_names.import_reassign}/invocations"
 }
 
 # CDN Module
