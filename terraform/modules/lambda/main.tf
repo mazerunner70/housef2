@@ -285,14 +285,4 @@ variable "transaction_files_bucket_arn" {
 # Outputs
 output "lambda_role_arn" {
   value = aws_iam_role.lambda_role.arn
-}
-
-output "function_names" {
-  value = {
-    account_api     = aws_lambda_function.account_api.function_name
-    transaction_api = aws_lambda_function.transaction_api.function_name
-    import_upload   = aws_lambda_function.import_upload.function_name
-    import_analysis = aws_lambda_function.import_analysis.function_name
-    import_processor = aws_lambda_function.import_processor.function_name
-  }
 } 
