@@ -2,6 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ImportService } from '../../services/import';
 import { Logger } from '../../utils/logger';
 import { ValidationError } from '../../utils/errors';
+import { createApiResponse } from '../../utils/lambda';
 
 /**
  * Handler for reassigning an import to a different account
@@ -48,42 +49,18 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
     logger.info('Import reassigned successfully', { result });
     
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true
-      },
-      body: JSON.stringify(result)
-    };
+    return createApiResponse(200, result);
   } catch (error) {
     logger.error('Error reassigning import', { error });
     
     if (error instanceof ValidationError) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Credentials': true
-        },
-        body: JSON.stringify({
-          message: error.message
-        })
-      };
+      return createApiResponse(400, {
+        message: error.message
+      });
     }
     
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true
-      },
-      body: JSON.stringify({
-        message: 'An error occurred while reassigning the import'
-      })
-    };
+    return createApiResponse(500, {
+      message: 'An error occurred while reassigning the import'
+    });
   }
 }; 

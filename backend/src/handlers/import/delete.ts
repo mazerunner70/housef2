@@ -2,6 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ImportService } from '../../services/import';
 import { Logger } from '../../utils/logger';
 import { ValidationError } from '../../utils/errors';
+import { createApiResponse } from '../../utils/lambda';
 
 /**
  * Handler for deleting an import
@@ -39,44 +40,20 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
     logger.info('Import deleted successfully', { accountId, uploadId });
     
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true
-      },
-      body: JSON.stringify({
-        message: 'Import deleted successfully'
-      })
-    };
+    return createApiResponse(200, {
+      message: 'Import deleted successfully'
+    });
   } catch (error) {
     logger.error('Error deleting import', { error });
     
     if (error instanceof ValidationError) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Credentials': true
-        },
-        body: JSON.stringify({
-          message: error.message
-        })
-      };
+      return createApiResponse(400, {
+        message: error.message
+      });
     }
     
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true
-      },
-      body: JSON.stringify({
-        message: 'An error occurred while deleting the import'
-      })
-    };
+    return createApiResponse(500, {
+      message: 'An error occurred while deleting the import'
+    });
   }
 }; 
