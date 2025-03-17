@@ -342,7 +342,7 @@ resource "aws_api_gateway_stage" "main" {
   
   # Add CORS headers to all responses
   variables = {
-    "cors.origin" = "'*'"
+    "cors_origin" = "'*'"
   }
 }
 
