@@ -3,6 +3,7 @@ import { authService } from './auth';
 export class API {
   private baseUrl: string;
   private apiPrefix: string = '';
+  private useProxy: boolean = false;
 
   constructor() {
     this.baseUrl = window.env?.REACT_APP_API_URL || '';
@@ -10,9 +11,19 @@ export class API {
       console.warn('API URL not found in environment variables');
     }
     
-    // Only add the /api prefix if we're using CloudFront instead of direct API Gateway
-    // CloudFront domain will not contain 'execute-api' which is in API Gateway domains
-    if (!this.baseUrl.includes('execute-api.')) {
+    // Check if we're running in local development (localhost)
+    const isLocalDevelopment = window.location.hostname === 'localhost' || 
+                               window.location.hostname === '127.0.0.1';
+    
+    // If we're in local development, use the proxy
+    if (isLocalDevelopment) {
+      console.log('Running in local development environment, using CORS proxy');
+      this.useProxy = true;
+      // The proxy URL is relative to the web server
+      this.baseUrl = '/api-proxy'; 
+    } 
+    // CloudFront path-based routing check
+    else if (!this.baseUrl.includes('execute-api.')) {
       this.apiPrefix = '/api';
       console.log('Using CloudFront distribution with /api prefix');
     } else {
