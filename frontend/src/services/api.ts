@@ -2,7 +2,7 @@ import { authService } from './auth';
 
 export class API {
   private baseUrl: string;
-  private apiPrefix: string = '/api';
+  private apiPrefix: string = '';
 
   constructor() {
     this.baseUrl = window.env?.REACT_APP_API_URL || '';
@@ -10,13 +10,13 @@ export class API {
       console.warn('API URL not found in environment variables');
     }
     
-    // If we're using the consolidated CloudFront distribution, 
-    // we need to add the /api prefix to all requests
-    if (!this.baseUrl.includes('/api')) {
-      console.log('Using consolidated CloudFront distribution with /api prefix');
+    // Only add the /api prefix if we're using CloudFront instead of direct API Gateway
+    // CloudFront domain will not contain 'execute-api' which is in API Gateway domains
+    if (!this.baseUrl.includes('execute-api.')) {
+      this.apiPrefix = '/api';
+      console.log('Using CloudFront distribution with /api prefix');
     } else {
-      // If the API URL already includes /api, don't add it again
-      this.apiPrefix = '';
+      console.log('Using API Gateway directly, no prefix needed');
     }
   }
 

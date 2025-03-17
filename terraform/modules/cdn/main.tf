@@ -41,7 +41,7 @@ resource "aws_cloudfront_distribution" "consolidated" {
   origin {
     domain_name = replace(var.api_endpoint, "/^https?://([^/]*).*/", "$1")
     origin_id   = "ApiGateway"
-    origin_path = "/${var.environment}"
+    origin_path = ""
 
     custom_origin_config {
       http_port              = 80
