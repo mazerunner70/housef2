@@ -346,15 +346,6 @@ resource "aws_api_gateway_stage" "main" {
   }
 }
 
-# Base path mapping for the API Gateway
-resource "aws_api_gateway_base_path_mapping" "api" {
-  api_id      = aws_api_gateway_rest_api.main.id
-  stage_name  = aws_api_gateway_stage.main.stage_name
-  domain_name = var.api_domain_name
-  base_path   = "api"
-  count       = var.api_domain_name != "" ? 1 : 0
-}
-
 # Variables
 variable "project_name" {
   description = "Project name for resource naming"
@@ -393,11 +384,6 @@ variable "import_reassign_invoke_arn" {
 
 variable "import_delete_invoke_arn" {
   description = "Import Delete Lambda invoke ARN"
-  type        = string
-}
-
-variable "api_domain_name" {
-  description = "API domain name"
   type        = string
 }
 

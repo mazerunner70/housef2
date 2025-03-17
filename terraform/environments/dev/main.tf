@@ -92,7 +92,6 @@ module "api" {
   import_upload_invoke_arn = module.lambda.import_upload_invoke_arn
   import_reassign_invoke_arn = module.lambda.import_reassign_invoke_arn
   import_delete_invoke_arn = module.lambda.import_delete_invoke_arn
-  api_domain_name = local.domain_name
 }
 
 # CDN Module
@@ -109,6 +108,7 @@ module "cdn" {
   aws_region = "eu-west-2"
   s3_website_endpoint = module.storage.web_bucket_website_endpoint
   environment = local.environment
+  use_custom_domain = false
 }
 
 # Web Module

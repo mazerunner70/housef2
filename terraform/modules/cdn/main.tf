@@ -22,7 +22,7 @@ resource "aws_cloudfront_distribution" "consolidated" {
   is_ipv6_enabled     = true
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
-  aliases             = var.domain_name != "" ? [var.domain_name] : []
+  aliases             = var.use_custom_domain ? [var.domain_name] : []
 
   # S3 Origin for frontend
   origin {
@@ -173,6 +173,12 @@ variable "acm_certificate_arn" {
   description = "ARN of ACM certificate for custom domain"
   type        = string
   default     = ""
+}
+
+variable "use_custom_domain" {
+  description = "Whether to use a custom domain"
+  type        = bool
+  default     = false
 }
 
 # Outputs
