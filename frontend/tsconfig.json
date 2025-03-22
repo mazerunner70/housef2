@@ -17,6 +17,6 @@
       "@shared/*": ["shared/*"]
     }
   },
-  "include": ["src/**/*", "webpack.config.ts", "../shared/**/*"],
+  "include": ["src/**/*", "webpack.config.ts", "shared/**/*"],
   "exclude": ["node_modules", "**/*.spec.ts", "dist"]
 } 
