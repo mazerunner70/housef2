@@ -3,6 +3,7 @@ import { ImportService } from '../services/import';
 import { getUserIdFromEvent } from '../utils/auth';
 import { successResponse, errorResponse } from '../utils/response';
 import { Logger } from '../utils/logger';
+import { ImportConfirmation } from '@shared/types/import';
 
 const importService = new ImportService();
 const logger = new Logger('import-handler');
