@@ -1,111 +1,104 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent } from 'aws-lambda';
 import { ImportService } from '../services/import';
 import { getUserIdFromEvent } from '../utils/auth';
-import { createResponse } from '../utils/response';
+import { successResponse, errorResponse } from '../utils/response';
+import { Logger } from '../utils/logger';
 
 const importService = new ImportService();
+const logger = new Logger('import-handler');
 
-export async function getImports(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+export async function getImports(event: APIGatewayProxyEvent) {
   try {
     const userId = getUserIdFromEvent(event);
     const imports = await importService.getImports(userId);
-    return createResponse(200, imports);
+    return successResponse(imports);
   } catch (error) {
-    console.error('Error getting imports:', error);
-    return createResponse(500, { message: 'Failed to get imports' });
+    logger.error('Error getting imports', { error });
+    return errorResponse(error);
   }
 }
 
-export async function getImportAnalysis(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+export async function getImportAnalysis(event: APIGatewayProxyEvent) {
   try {
     const userId = getUserIdFromEvent(event);
     const uploadId = event.pathParameters?.uploadId;
-    
     if (!uploadId) {
-      return createResponse(400, { message: 'Upload ID is required' });
+      return errorResponse('Upload ID is required', 400);
     }
-
     const analysis = await importService.getImportAnalysis(userId, uploadId);
-    return createResponse(200, analysis);
+    return successResponse(analysis);
   } catch (error) {
-    console.error('Error getting import analysis:', error);
-    return createResponse(500, { message: 'Failed to get import analysis' });
+    logger.error('Error getting import analysis', { error });
+    return errorResponse(error);
   }
 }
 
-export async function getUploadUrl(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+export async function getUploadUrl(event: APIGatewayProxyEvent) {
   try {
     const userId = getUserIdFromEvent(event);
     const body = JSON.parse(event.body || '{}');
     const { fileName, fileType } = body;
 
     if (!fileName || !fileType) {
-      return createResponse(400, { message: 'File name and type are required' });
+      return errorResponse('File name and type are required', 400);
     }
 
     const result = await importService.getUploadUrl(userId, fileName, fileType);
-    return createResponse(200, result);
+    return successResponse(result);
   } catch (error) {
-    console.error('Error getting upload URL:', error);
-    return createResponse(500, { message: 'Failed to get upload URL' });
+    logger.error('Error getting upload URL', { error });
+    return errorResponse(error);
   }
 }
 
-export async function confirmImport(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+export async function confirmImport(event: APIGatewayProxyEvent) {
   try {
     const userId = getUserIdFromEvent(event);
-    const uploadId = event.pathParameters?.uploadId;
     const body = JSON.parse(event.body || '{}');
+    const { uploadId, accountId } = body;
 
-    if (!uploadId) {
-      return createResponse(400, { message: 'Upload ID is required' });
+    if (!uploadId || !accountId) {
+      return errorResponse('Upload ID and account ID are required', 400);
     }
 
-    await importService.confirmImport(userId, {
-      uploadId,
-      accountId: body.accountId,
-      userConfirmations: body.userConfirmations,
-      duplicateHandling: body.duplicateHandling
-    });
-
-    return createResponse(200, { message: 'Import confirmed successfully' });
+    await importService.confirmImport(userId, { uploadId, accountId });
+    return successResponse({ message: 'Import confirmed' });
   } catch (error) {
-    console.error('Error confirming import:', error);
-    return createResponse(500, { message: 'Failed to confirm import' });
+    logger.error('Error confirming import', { error });
+    return errorResponse(error);
   }
 }
 
-export async function handleWrongAccount(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+export async function handleWrongAccount(event: APIGatewayProxyEvent) {
   try {
     const userId = getUserIdFromEvent(event);
-    const uploadId = event.pathParameters?.uploadId;
     const body = JSON.parse(event.body || '{}');
+    const { uploadId, action } = body;
 
-    if (!uploadId) {
-      return createResponse(400, { message: 'Upload ID is required' });
+    if (!uploadId || !action) {
+      return errorResponse('Upload ID and action are required', 400);
     }
 
-    await importService.handleWrongAccount(userId, uploadId, body);
-    return createResponse(200, { message: 'Wrong account handled successfully' });
+    await importService.handleWrongAccount(userId, uploadId, action);
+    return successResponse({ message: 'Action processed' });
   } catch (error) {
-    console.error('Error handling wrong account:', error);
-    return createResponse(500, { message: 'Failed to handle wrong account' });
+    logger.error('Error handling wrong account', { error });
+    return errorResponse(error);
   }
 }
 
-export async function deleteImport(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+export async function deleteImport(event: APIGatewayProxyEvent) {
   try {
     const userId = getUserIdFromEvent(event);
     const uploadId = event.pathParameters?.uploadId;
-
     if (!uploadId) {
-      return createResponse(400, { message: 'Upload ID is required' });
+      return errorResponse('Upload ID is required', 400);
     }
 
     await importService.deleteImport(userId, uploadId);
-    return createResponse(200, { message: 'Import deleted successfully' });
+    return successResponse({ message: 'Import deleted' });
   } catch (error) {
-    console.error('Error deleting import:', error);
-    return createResponse(500, { message: 'Failed to delete import' });
+    logger.error('Error deleting import', { error });
+    return errorResponse(error);
   }
 } 
