@@ -15,7 +15,9 @@ declare global {
       REACT_APP_COGNITO_USER_POOL_ID: string;
       REACT_APP_COGNITO_CLIENT_ID: string;
       REACT_APP_AWS_REGION: string;
-    }
+    };
+    authService: AuthService;
+    userPool: CognitoUserPool;
   }
 }
 
@@ -68,40 +70,98 @@ class AuthService {
       throw new Error('Required Cognito configuration is missing');
     }
 
+    // Initialize the user pool
     this.userPool = new CognitoUserPool({
       UserPoolId: userPoolId,
       ClientId: clientId,
       endpoint: `https://cognito-idp.${region}.amazonaws.com`
     });
 
+    // Attach the user pool to the window object
+    window.userPool = this.userPool;
+    window.authService = this;
+
     // Start session management
     this.setupSessionRefresh();
+
+    console.log('Auth service initialized with Cognito user pool');
   }
 
   async signIn(credentials: AuthCredentials): Promise<AuthUser> {
-    return new Promise((resolve, reject) => {
-      const authData = new AuthenticationDetails({
-        Username: credentials.email,
-        Password: credentials.password
-      });
+    try {
+      // Normal production implementation follows
+      return new Promise((resolve, reject) => {
+        const authData = new AuthenticationDetails({
+          Username: credentials.email,
+          Password: credentials.password
+        });
 
-      // If we have a cognitoUser from a previous NEW_PASSWORD_REQUIRED challenge, use it
-      if (this.cognitoUser && credentials.newPassword) {
-        try {
-          // The API doesn't accept these fields back
-          const userAttributes = {
-            given_name: credentials.email.split('@')[0], // Use email username as given_name
-            family_name: credentials.email.split('@')[0], // Use email username as family_name
-          };
-          
-          this.cognitoUser.completeNewPasswordChallenge(
-            credentials.newPassword,
-            userAttributes,
-            {
+        // If we have a cognitoUser from a previous NEW_PASSWORD_REQUIRED challenge, use it
+        if (this.cognitoUser && credentials.newPassword) {
+          try {
+            // The API doesn't accept these fields back
+            const userAttributes = {
+              given_name: credentials.email.split('@')[0], // Use email username as given_name
+              family_name: credentials.email.split('@')[0], // Use email username as family_name
+            };
+            
+            this.cognitoUser.completeNewPasswordChallenge(
+              credentials.newPassword,
+              userAttributes,
+              {
+                onSuccess: async (session) => {
+                  try {
+                    const user = await this.getUserAttributes(this.cognitoUser!);
+                    this.cognitoUser = null; // Clear the stored user after successful password change
+                    resolve(user);
+                  } catch (error) {
+                    reject(error);
+                  }
+                },
+                onFailure: (err) => {
+                  reject(this.handleAuthError(err));
+                }
+              }
+            );
+          } catch (error) {
+            reject(this.handleAuthError(error));
+          }
+          return;
+        }
+
+        // Initial sign in attempt
+        this.cognitoUser = new CognitoUser({
+          Username: credentials.email,
+          Pool: this.userPool
+        });
+
+        this.cognitoUser.authenticateUser(authData, {
+          onSuccess: async (session) => {
+            try {
+              const user = await this.getUserAttributes(this.cognitoUser!);
+              resolve(user);
+            } catch (error) {
+              reject(error);
+            }
+          },
+          onFailure: (err) => {
+            this.cognitoUser = null;
+            reject(this.handleAuthError(err));
+          },
+          newPasswordRequired: (userAttributes, requiredAttributes) => {
+            // Don't attempt to change password here, just notify the UI
+            reject(new Error('NEW_PASSWORD_REQUIRED'));
+          },
+          mfaRequired: (challengeName, challengeParameters) => {
+            if (!credentials.mfaCode) {
+              reject(new Error('MFA code required'));
+              return;
+            }
+
+            this.cognitoUser!.sendMFACode(credentials.mfaCode, {
               onSuccess: async (session) => {
                 try {
                   const user = await this.getUserAttributes(this.cognitoUser!);
-                  this.cognitoUser = null; // Clear the stored user after successful password change
                   resolve(user);
                 } catch (error) {
                   reject(error);
@@ -110,59 +170,14 @@ class AuthService {
               onFailure: (err) => {
                 reject(this.handleAuthError(err));
               }
-            }
-          );
-        } catch (error) {
-          reject(this.handleAuthError(error));
-        }
-        return;
-      }
-
-      // Initial sign in attempt
-      this.cognitoUser = new CognitoUser({
-        Username: credentials.email,
-        Pool: this.userPool
-      });
-
-      this.cognitoUser.authenticateUser(authData, {
-        onSuccess: async (session) => {
-          try {
-            const user = await this.getUserAttributes(this.cognitoUser!);
-            resolve(user);
-          } catch (error) {
-            reject(error);
+            });
           }
-        },
-        onFailure: (err) => {
-          this.cognitoUser = null;
-          reject(this.handleAuthError(err));
-        },
-        newPasswordRequired: (userAttributes, requiredAttributes) => {
-          // Don't attempt to change password here, just notify the UI
-          reject(new Error('NEW_PASSWORD_REQUIRED'));
-        },
-        mfaRequired: (challengeName, challengeParameters) => {
-          if (!credentials.mfaCode) {
-            reject(new Error('MFA code required'));
-            return;
-          }
-
-          this.cognitoUser!.sendMFACode(credentials.mfaCode, {
-            onSuccess: async (session) => {
-              try {
-                const user = await this.getUserAttributes(this.cognitoUser!);
-                resolve(user);
-              } catch (error) {
-                reject(error);
-              }
-            },
-            onFailure: (err) => {
-              reject(this.handleAuthError(err));
-            }
-          });
-        }
+        });
       });
-    });
+    } catch (error) {
+      console.error('Error signing in:', error);
+      throw error;
+    }
   }
 
   async signOut(): Promise<void> {
@@ -173,35 +188,58 @@ class AuthService {
     this.clearSessionRefresh();
   }
 
-  async getCurrentUser(): Promise<AuthUser> {
-    return new Promise((resolve, reject) => {
-      const cognitoUser = this.userPool.getCurrentUser();
+  // Initialize Cognito configuration
+  private initCognito(): void {
+    const poolData = {
+      UserPoolId: window.env?.REACT_APP_COGNITO_USER_POOL_ID || '',
+      ClientId: window.env?.REACT_APP_COGNITO_CLIENT_ID || ''
+    };
+    
+    if (!poolData.UserPoolId || !poolData.ClientId) {
+      console.error('Cognito configuration missing. Check environment variables.');
+      throw new Error('Invalid Cognito configuration');
+    }
+    
+    this.userPool = new CognitoUserPool(poolData);
+    window.userPool = this.userPool;
+    console.log('Cognito user pool initialized');
+  }
 
-      if (!cognitoUser) {
-        reject(new Error('No user found'));
-        return;
+  async getCurrentUser(): Promise<AuthUser | null> {
+    try {
+      if (!this.userPool) {
+        this.initCognito();
       }
-
-      cognitoUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
-        if (err || !session) {
-          reject(err || new Error('Invalid session'));
-          return;
-        }
-
-        this.getUserAttributes(cognitoUser)
-          .then(async (user) => {
-            // Check if MFA is enabled
-            try {
-              const mfaEnabled = await this.isMfaEnabled(cognitoUser);
-              user.mfaEnabled = mfaEnabled;
-            } catch (error) {
-              console.error('Error checking MFA status:', error);
-            }
-            resolve(user);
-          })
-          .catch(reject);
+      
+      const cognitoUser = this.userPool.getCurrentUser();
+      if (!cognitoUser) {
+        console.log('No current user found in session');
+        return null;
+      }
+      
+      return new Promise((resolve, reject) => {
+        cognitoUser.getSession((err: Error | null, session: any) => {
+          if (err) {
+            console.error('Error getting session:', err);
+            reject(err);
+            return;
+          }
+          
+          if (!session.isValid()) {
+            console.warn('Session is not valid');
+            resolve(null);
+            return;
+          }
+          
+          this.getUserAttributes(cognitoUser)
+            .then(resolve)
+            .catch(reject);
+        });
       });
-    });
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      return null;
+    }
   }
 
   private async getUserAttributes(cognitoUser: CognitoUser): Promise<AuthUser> {
@@ -226,6 +264,9 @@ class AuthService {
 
         attributes.forEach(attr => {
           switch (attr.getName()) {
+            case 'sub':
+              user.id = attr.getValue();
+              break;
             case 'email':
               user.email = attr.getValue();
               break;
@@ -238,15 +279,20 @@ class AuthService {
             case 'custom:prefname':
               user.preferredName = attr.getValue();
               break;
-            case 'custom:preferred_name':
+            case 'custom:pref_name':
               user.preferredName = attr.getValue();
               break;
             case 'custom:role':
               user.role = attr.getValue();
               break;
+            case 'custom:account_id':
+              // If a custom account ID is provided, use it
+              user.id = attr.getValue();
+              break;
           }
         });
 
+        console.log('User retrieved successfully:', user);
         resolve(user);
       });
     });

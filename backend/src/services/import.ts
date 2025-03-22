@@ -1,11 +1,13 @@
-import { S3 } from '../utils/s3';
-import { DynamoDB } from '../utils/dynamo';
+import { S3 } from 'aws-sdk';
+import { DynamoDB } from 'aws-sdk';
 import { Logger } from '../utils/logger';
 import { v4 as uuid } from 'uuid';
 import { ValidationError } from '../utils/errors';
 import { Lambda } from '../utils/lambda';
 import { Transaction } from '../types/transaction';
 import { config } from '../config';
+import { ImportAnalysis, ImportListItem, ImportConfirmation } from '../../shared/types/import';
+import { getUserIdFromEvent } from '../utils/auth';
 
 interface ImportAnalysis {
   fileStats: {
@@ -43,6 +45,12 @@ interface ExpressionAttributeNames {
   '#processingOptions': string;
 }
 
+const s3 = new S3();
+const dynamodb = new DynamoDB.DocumentClient();
+
+const BUCKET_NAME = process.env.IMPORT_BUCKET_NAME || 'housef2-imports';
+const TABLE_NAME = process.env.IMPORT_TABLE_NAME || 'housef2-imports';
+
 /**
  * ImportService  
  * 
@@ -58,103 +66,197 @@ interface ExpressionAttributeNames {
  * 
  */
 export class ImportService {
-  private s3: S3;
-  private dynamo: DynamoDB;
   private logger: Logger;
 
   constructor() {
-    this.s3 = new S3();
-    this.dynamo = new DynamoDB();
     this.logger = new Logger('import-service');
   }
 
   /**
-   * Initiate an import by creating an import record in the database with a pending status
-   * @param params - The parameters for the import
+   * Get all imports for the current user
    */
-  async initiateImport(params: {
-    userId: string;
-    accountId: string;
-    fileName: string;
-    fileType: string;
-    contentType: string;
-  }) {
-    const uploadId = uuid();
-    const { userId, accountId, fileName } = params;
-    
-    // Create import record
-    await this.createImportRecord({
-      uploadId,
-      userId,
-      accountId,
-      fileName,
-      status: 'PENDING'
-    });
-    
-    // Generate pre-signed URL
-    const key = this.generateS3Key(userId, accountId, uploadId, fileName);
-    const uploadUrl = await this.s3.getSignedUploadUrl({
-      key,
-      contentType: params.contentType,
-      expiresIn: 300 // 5 minutes
-    });
-    
-    return {
-      uploadId,
-      uploadUrl,
-      expiresIn: 300
+  async getImports(userId: string): Promise<ImportListItem[]> {
+    const params = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: 'PK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': `USER#${userId}`
+      }
     };
+
+    const result = await dynamodb.query(params).promise();
+    return (result.Items || []).map(item => this.mapDynamoItemToImportListItem(item));
   }
 
   /**
-   * Create an import record in the database with a pending status
-   * @param params - The parameters for the import
+   * Get import analysis for a specific import
    */
-  private async createImportRecord(params: {
-    uploadId: string;
-    userId: string;
-    accountId: string;
-    fileName: string;
-    status: string;
-  }) {
-    const timestamp = new Date().toISOString();
-    
-    const item = {
-      PK: `ACCOUNT#${params.accountId}`,
-      SK: `IMPORT#${params.uploadId}`,
-      GSI1PK: `USER#${params.userId}`,
-      GSI1SK: `IMPORT#${timestamp}`,
-      uploadId: params.uploadId,
-      fileName: params.fileName,
-      status: params.status,
-      createdAt: timestamp,
-      updatedAt: timestamp
+  async getImportAnalysis(userId: string, uploadId: string): Promise<ImportAnalysis> {
+    const params = {
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `USER#${userId}`,
+        SK: `IMPORT#${uploadId}`
+      }
     };
-    
-    await this.dynamo.put({
-      TableName: config.tables.imports,
-      Item: item
-    });
+
+    const result = await dynamodb.get(params).promise();
+    if (!result.Item) {
+      throw new Error('Import not found');
+    }
+
+    return result.Item.analysisData;
   }
+
   /**
-   * Generate an S3 key for the import file based on the user ID, account ID, upload ID, and file name
-   * @param userId - The user ID
-   * @param accountId - The account ID
-   * @param uploadId - The upload ID
-   * @param fileName - The file name
-   * @returns The S3 key
+   * Get pre-signed URL for file upload
    */
-  private generateS3Key(
-    userId: string,
-    accountId: string,
-    uploadId: string,
-    fileName: string
-  ): string {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    
-    return `${userId}/${accountId}/${year}/${month}/original/${uploadId}_${fileName}`;
+  async getUploadUrl(userId: string, fileName: string, fileType: string): Promise<{ uploadUrl: string; uploadId: string }> {
+    const uploadId = `${Date.now()}-${Math.random().toString(36).substring(2)}`;
+    const key = `${userId}/pending/${uploadId}/original.${fileType}`;
+
+    const params = {
+      Bucket: BUCKET_NAME,
+      Key: key,
+      ContentType: this.getContentType(fileType),
+      Expires: 300 // URL expires in 5 minutes
+    };
+
+    const uploadUrl = await s3.getSignedUrlPromise('putObject', params);
+
+    // Create import record in DynamoDB
+    const importItem = {
+      PK: `USER#${userId}`,
+      SK: `IMPORT#${uploadId}`,
+      fileName,
+      fileType,
+      uploadTime: new Date().toISOString(),
+      status: 'PENDING',
+      s3Key: key
+    };
+
+    await dynamodb.put({
+      TableName: TABLE_NAME,
+      Item: importItem
+    }).promise();
+
+    return { uploadUrl, uploadId };
+  }
+
+  /**
+   * Confirm import and start processing
+   */
+  async confirmImport(userId: string, confirmation: ImportConfirmation): Promise<void> {
+    const params = {
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `USER#${userId}`,
+        SK: `IMPORT#${confirmation.uploadId}`
+      },
+      UpdateExpression: 'SET #status = :status, matchedAccountId = :accountId',
+      ExpressionAttributeNames: {
+        '#status': 'status'
+      },
+      ExpressionAttributeValues: {
+        ':status': 'ANALYZING',
+        ':accountId': confirmation.accountId
+      }
+    };
+
+    await dynamodb.update(params).promise();
+  }
+
+  /**
+   * Handle wrong account detection
+   */
+  async handleWrongAccount(userId: string, uploadId: string, action: { action: string; newAccountId?: string; confirmation?: string; reason?: string }): Promise<void> {
+    const params = {
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `USER#${userId}`,
+        SK: `IMPORT#${uploadId}`
+      },
+      UpdateExpression: 'SET #status = :status, matchedAccountId = :accountId, userAction = :action',
+      ExpressionAttributeNames: {
+        '#status': 'status'
+      },
+      ExpressionAttributeValues: {
+        ':status': 'READY',
+        ':accountId': action.newAccountId || null,
+        ':action': action
+      }
+    };
+
+    await dynamodb.update(params).promise();
+  }
+
+  /**
+   * Delete an import
+   */
+  async deleteImport(userId: string, uploadId: string): Promise<void> {
+    // Get the import to find the S3 key
+    const getParams = {
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `USER#${userId}`,
+        SK: `IMPORT#${uploadId}`
+      }
+    };
+
+    const result = await dynamodb.get(getParams).promise();
+    if (!result.Item) {
+      throw new Error('Import not found');
+    }
+
+    // Delete from S3
+    if (result.Item.s3Key) {
+      await s3.deleteObject({
+        Bucket: BUCKET_NAME,
+        Key: result.Item.s3Key
+      }).promise();
+    }
+
+    // Delete from DynamoDB
+    await dynamodb.delete({
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `USER#${userId}`,
+        SK: `IMPORT#${uploadId}`
+      }
+    }).promise();
+  }
+
+  /**
+   * Get content type for file type
+   */
+  private getContentType(fileType: string): string {
+    switch (fileType.toLowerCase()) {
+      case 'csv':
+        return 'text/csv';
+      case 'ofx':
+        return 'application/x-ofx';
+      case 'qif':
+        return 'application/x-qif';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  /**
+   * Map DynamoDB item to ImportListItem
+   */
+  private mapDynamoItemToImportListItem(item: any): ImportListItem {
+    return {
+      uploadId: item.SK.replace('IMPORT#', ''),
+      fileName: item.fileName,
+      fileType: item.fileType,
+      uploadTime: item.uploadTime,
+      status: item.status,
+      matchedAccountId: item.matchedAccountId,
+      matchedAccountName: item.matchedAccountName,
+      fileStats: item.fileStats,
+      error: item.error
+    };
   }
 
   async analyzeImportFile(params: {
@@ -164,7 +266,7 @@ export class ImportService {
     existingTransactions: Transaction[];
   }): Promise<ImportAnalysis> {
     // Get file content
-    const fileContent: string = await this.s3.getFileContent(params.bucket, params.key);
+    const fileContent: string = await this.getFileContent(params.bucket, params.key);
     
     // Parse transactions based on file type
     const parsedTransactions = await this.parseTransactions(fileContent);
@@ -242,7 +344,7 @@ export class ImportService {
       ExpressionAttributeValues: expressionAttributeValues
     };
     
-    await this.dynamo.update(updateParams);
+    await dynamodb.update(updateParams).promise();
   }
 
   parseS3Key(key: string): { userId: string; accountId: string; uploadId: string } {
@@ -397,13 +499,13 @@ export class ImportService {
   }
 
   async getImportStatus(accountId: string, uploadId: string) {
-    const result = await this.dynamo.get({
-      TableName: config.tables.imports,
+    const result = await dynamodb.get({
+      TableName: TABLE_NAME,
       Key: {
-        PK: `ACCOUNT#${accountId}`,
+        PK: `USER#${accountId}`,
         SK: `IMPORT#${uploadId}`
       }
-    });
+    }).promise();
     
     if (!result.Item) {
       throw new ValidationError('Import not found');
@@ -412,40 +514,6 @@ export class ImportService {
     return result.Item;
   }
 
-  /**
-   * Confirm the import has been reviewed and is ready to be processed
-   * @param params - The parameters for the import
-   */
-  async confirmImport(params: {
-    accountId: string;
-    uploadId: string;
-    userConfirmations: {
-      accountVerified: boolean;
-      dateRangeVerified: boolean;
-      samplesReviewed: boolean;
-    };
-    duplicateHandling: 'SKIP' | 'REPLACE' | 'MARK_DUPLICATE';
-  }) {
-    // Verify all confirmations are true
-    const allConfirmed = Object.values(params.userConfirmations).every(v => v === true);
-    if (!allConfirmed) {
-      throw new ValidationError('All confirmations must be accepted');
-    }
-    
-    // Update status to processing
-    await this.updateImportStatus({
-      accountId: params.accountId,
-      uploadId: params.uploadId,
-      status: 'PROCESSING',
-      processingOptions: {
-        duplicateHandling: params.duplicateHandling
-      }
-    });
-    
-    // Trigger processing lambda
-    await this.triggerProcessing(params);
-  }
-  
   /**
    * Trigger the processing lambda
    * @param params - The parameters for the processing lambda to take the file and create transactions
@@ -483,7 +551,7 @@ export class ImportService {
     );
     
     const bucketName = process.env.IMPORT_BUCKET || 'housef2-imports';
-    return await this.s3.getFileContent(bucketName, key);
+    return await this.getFileContent(bucketName, key);
   }
 
   /**
@@ -512,11 +580,11 @@ export class ImportService {
     }
     
     // Create a new record with the new account ID
-    await this.dynamo.update({
-      TableName: config.tables.imports,
+    await dynamodb.update({
+      TableName: TABLE_NAME,
       Key: {
-        PK: `IMPORT#${uploadId}`,
-        SK: `METADATA#${uploadId}`
+        PK: `USER#${userId}`,
+        SK: `IMPORT#${uploadId}`
       },
       UpdateExpression: 'SET #accountId = :newAccountId, #updatedAt = :updatedAt, #updatedBy = :updatedBy, #history = list_append(if_not_exists(#history, :emptyList), :historyEntry)',
       ExpressionAttributeNames: {
@@ -537,7 +605,7 @@ export class ImportService {
           updatedBy: userId
         }]
       }
-    });
+    }).promise();
     
     this.logger.info('Updated account assignment', {
       uploadId,
@@ -564,28 +632,28 @@ export class ImportService {
     const importRecord = await this.getImportStatus(accountId, uploadId);
     
     // Delete the import record from DynamoDB
-    await this.dynamo.deleteItem({
-      TableName: config.tables.imports,
+    await dynamodb.delete({
+      TableName: TABLE_NAME,
       Key: {
-        PK: `ACCOUNT#${accountId}`,
+        PK: `USER#${accountId}`,
         SK: `IMPORT#${uploadId}`
       }
-    });
+    }).promise();
     
     // Generate the S3 key for the file
     try {
       const s3Key = this.generateS3Key(
-        importRecord.GSI1PK.replace('USER#', ''), // Extract userId from GSI1PK
+        importRecord.userId,
         accountId,
         uploadId,
         importRecord.fileName
       );
       
       // Delete the file from S3
-      await this.s3.deleteObject({
-        Bucket: config.s3.importBucket,
+      await s3.deleteObject({
+        Bucket: BUCKET_NAME,
         Key: s3Key
-      });
+      }).promise();
       
       this.logger.info('Import file deleted from S3', { accountId, uploadId, s3Key });
     } catch (error) {

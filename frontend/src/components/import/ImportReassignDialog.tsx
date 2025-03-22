@@ -50,14 +50,28 @@ const ImportReassignDialog: React.FC<ImportReassignDialogProps> = ({
   }, [open]);
 
   const fetchAccounts = async () => {
-    // This would be replaced with an actual API call
-    // For now, we'll use dummy data
-    setAccounts([
-      { id: 'account1', name: 'Checking Account' },
-      { id: 'account2', name: 'Savings Account' },
-      { id: 'account3', name: 'Investment Account' },
-      { id: 'account4', name: 'Credit Card' }
-    ]);
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Call the API to get accounts
+      const response = await fetch('/api/accounts', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch accounts');
+      }
+      
+      const data = await response.json();
+      setAccounts(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch accounts');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAccountChange = (event: SelectChangeEvent) => {

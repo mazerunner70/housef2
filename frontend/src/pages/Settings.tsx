@@ -106,20 +106,27 @@ const Settings: React.FC = () => {
           // Get the full user profile from Cognito
           const cognitoUser = await authService.getCurrentUser();
           
-          setProfileForm({
-            firstName: cognitoUser.firstName || '',
-            lastName: cognitoUser.lastName || '',
-            email: cognitoUser.email || '',
-            preferredName: cognitoUser.preferredName || ''
-          });
-          
-          // Check if MFA is enabled
-          setSecuritySettings(prev => ({
-            ...prev,
-            twoFactorAuth: cognitoUser.mfaEnabled || false
-          }));
+          // Make sure cognitoUser exists before accessing properties
+          if (cognitoUser) {
+            setProfileForm({
+              firstName: cognitoUser.firstName || '',
+              lastName: cognitoUser.lastName || '',
+              email: cognitoUser.email || '',
+              preferredName: cognitoUser.preferredName || ''
+            });
+            
+            // Check if MFA is enabled
+            setSecuritySettings(prev => ({
+              ...prev,
+              twoFactorAuth: cognitoUser.mfaEnabled || false
+            }));
+          } else {
+            console.warn('No user data returned from Cognito');
+            setError('Unable to retrieve user profile. Please try again later.');
+          }
         } catch (err) {
           console.error('Failed to load user data:', err);
+          setError('Failed to load user data. Please refresh the page to try again.');
         }
       }
     };
@@ -167,9 +174,15 @@ const Settings: React.FC = () => {
     setError(null);
     
     try {
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      
       // Update the user's profile in Cognito
       await updateProfile({
-        name: profileForm.preferredName || `${profileForm.firstName} ${profileForm.lastName}`
+        id: currentUser.id,
+        name: profileForm.preferredName || `${profileForm.firstName} ${profileForm.lastName}`,
+        email: profileForm.email
       });
       
       setSuccessMessage('Profile updated successfully');
@@ -180,9 +193,20 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleSavePreferences = () => {
-    // In a real app, this would call an API to update the user's preferences
-    setSuccessMessage('Preferences updated successfully');
+  const handleSavePreferences = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // In a full implementation, this would call an API to update preferences
+      // For now we'll just simulate success
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setSuccessMessage('Preferences updated successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update preferences');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSetupMFA = async () => {

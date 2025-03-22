@@ -52,14 +52,16 @@ interface UploadResponse {
 ### S3 Structure
 ```
 housef2-imports/
-├── pending/
-│   └── {accountId}/
+├── {userId}/
+│   ├── pending/
+│   │   └── {uploadId}/
+│   │       └── original.{ext}
+│   ├── processing/
+│   │   └── {uploadId}/
+│   │       └── original.{ext}
+│   └── processed/
 │       └── {uploadId}/
 │           └── original.{ext}
-├── processing/
-│   └── {same structure}
-└── processed/
-    └── {same structure}
 ```
 
 ## Import Analysis Process
@@ -110,16 +112,70 @@ interface ImportAnalysis {
 ### DynamoDB Import Status Table
 ```json
 {
-  "PK": "ACCOUNT#{accountId}",
+  "PK": "USER#{userId}",
   "SK": "IMPORT#{uploadId}",
   "status": "ANALYZING",
   "fileName": "statement.csv",
+  "fileType": "CSV",
   "uploadTime": "2024-03-14T15:30:00Z",
+  "s3Key": "{userId}/pending/{uploadId}/original.csv",
+  "matchedAccountId": "acc123",  // Set after analysis
   "analysisData": {
     // ImportAnalysis object
   }
 }
 ```
+
+### Import List View
+The import page will display a list of all imported files with their metadata:
+
+```typescript
+interface ImportListItem {
+  uploadId: string;
+  fileName: string;
+  fileType: string;
+  uploadTime: string;
+  status: "PENDING" | "ANALYZING" | "READY" | "ERROR";
+  matchedAccountId?: string;
+  matchedAccountName?: string;
+  fileStats?: {
+    transactionCount: number;
+    dateRange: {
+      start: string;
+      end: string;
+    }
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+```
+
+### Import List Features
+1. File Information
+   - File name and type
+   - Upload date and time
+   - File size
+   - Transaction count (if analyzed)
+
+2. Status Indicators
+   - Pending: File uploaded, waiting for analysis
+   - Analyzing: Processing in progress
+   - Ready: Analysis complete, ready for review
+   - Error: Processing failed
+
+3. Account Matching
+   - Shows matched account name if identified
+   - Allows manual account selection if needed
+   - Displays confidence score for matches
+
+4. Actions
+   - View file details
+   - Download original file
+   - Delete import
+   - Retry failed imports
+   - Reassign to different account
 
 ## Confirmation Interface
 

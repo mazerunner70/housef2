@@ -1,5 +1,5 @@
 import { API } from './api';
-import { ImportAnalysis, ImportConfirmation } from '../types/import';
+import { ImportAnalysis, ImportListItem, ImportConfirmation, WrongAccountResponse } from '../types/import';
 import { Transaction } from '../types/transaction';
 
 export interface InitiateImportResponse {
@@ -50,91 +50,214 @@ export interface ParsedTransactionFile {
   fileType: string;
 }
 
-class ImportService {
+export class ImportService {
   private api: API;
 
-  constructor() {
-    this.api = new API();
+  constructor(api: API) {
+    this.api = api;
+  }
+
+  /**
+   * Get all imports for the current user
+   */
+  async getImports(): Promise<ImportListItem[]> {
+    try {
+      const response = await this.api.get('imports');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching imports:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get import analysis for a specific import
+   */
+  async getImportAnalysis(uploadId: string): Promise<ImportAnalysis> {
+    try {
+      const response = await this.api.get(`imports/${uploadId}/analysis`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching import analysis:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get pre-signed URL for file upload
+   */
+  async getUploadUrl(fileName: string, fileType: string): Promise<{ uploadUrl: string; uploadId: string }> {
+    try {
+      const response = await this.api.post('imports/upload-url', {
+        fileName,
+        fileType,
+        contentType: this.getContentType(fileType)
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting upload URL:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Confirm import and start processing
+   */
+  async confirmImport(confirmation: ImportConfirmation): Promise<void> {
+    try {
+      await this.api.post(`imports/${confirmation.uploadId}/confirm`, confirmation);
+    } catch (error) {
+      console.error('Error confirming import:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle wrong account detection
+   */
+  async handleWrongAccount(uploadId: string, action: { action: string; newAccountId?: string; confirmation?: string; reason?: string }): Promise<void> {
+    try {
+      await this.api.post(`imports/${uploadId}/wrong-account`, action);
+    } catch (error) {
+      console.error('Error handling wrong account:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an import
+   */
+  async deleteImport(uploadId: string): Promise<void> {
+    try {
+      await this.api.delete(`imports/${uploadId}`);
+    } catch (error) {
+      console.error('Error deleting import:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get content type for file type
+   */
+  getContentType(fileType: string): string {
+    switch (fileType.toLowerCase()) {
+      case 'csv':
+        return 'text/csv';
+      case 'ofx':
+        return 'application/x-ofx';
+      case 'qif':
+        return 'application/x-qif';
+      default:
+        return 'application/octet-stream';
+    }
   }
 
   /**
    * Get all imports for an account
    * @param accountId - The account ID
    */
-  async getImports(accountId: string): Promise<ImportStatus[]> {
-    const response = await this.api.get(`/accounts/${accountId}/imports`);
-    return response.data;
+  async getImportsForAccount(accountId: string): Promise<ImportStatus[]> {
+    try {
+      // Ensure accountId is properly encoded if it's an email address
+      const encodedAccountId = encodeURIComponent(accountId);
+      console.log(`Fetching imports for account: ${encodedAccountId}`);
+      
+      // Make the API call with explicit path parameter
+      const response = await this.api.get(`accounts/${encodedAccountId}/imports`);
+      
+      // Log the full request details for debugging
+      console.log('Request details:', {
+        accountId,
+        encodedAccountId,
+        path: `accounts/${encodedAccountId}/imports`
+      });
+      
+      // Handle different response formats
+      if (response && response.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (Array.isArray(response)) {
+        return response;
+      }
+      
+      // If response format is not recognized, log and return empty array
+      console.warn('Unrecognized response format when fetching imports:', response);
+      return [];
+      
+    } catch (error) {
+      // Handle authentication errors
+      if (error instanceof Error) {
+        if (error.message.includes('403')) {
+          console.error('Authentication error while fetching imports. Please check login status.');
+        } else {
+          console.error('Error fetching imports:', error);
+        }
+      }
+      
+      // Return empty array on error
+      return [];
+    }
   }
 
   /**
-   * Get the status of an import
+   * Get import status for a specific import
    * @param accountId - The account ID
    * @param uploadId - The upload ID
    */
   async getImportStatus(accountId: string, uploadId: string): Promise<ImportStatus> {
-    const response = await this.api.get(`/accounts/${accountId}/imports/${uploadId}`);
-    return response.data;
+    try {
+      console.log(`Getting import status for account: ${accountId}, upload: ${uploadId}`);
+      
+      // Use encodeURIComponent to handle special characters in account ID (like email addresses)
+      const encodedAccountId = encodeURIComponent(accountId);
+      
+      const response = await this.api.get(`accounts/${encodedAccountId}/imports/${uploadId}`);
+      return response;
+    } catch (error) {
+      console.error('Error getting import status:', error);
+      throw error;
+    }
   }
 
   /**
-   * Initiate a new import
+   * Initiate a new import upload
    * @param accountId - The account ID
    * @param file - The file to upload
    */
   async initiateImport(accountId: string, file: File): Promise<{ uploadUrl: string; uploadId: string }> {
-    const response = await this.api.post(`/accounts/${accountId}/imports`, {
+    console.log(`Initiating import for account: ${accountId}, file: ${file.name}`);
+    
+    // Use encodeURIComponent to handle special characters in account ID
+    const encodedAccountId = encodeURIComponent(accountId);
+    
+    const response = await this.api.post(`/accounts/${encodedAccountId}/imports`, {
       fileName: file.name,
-      fileType: file.type,
       contentType: file.type
     });
     
-    return response.data;
+    return {
+      uploadId: response.uploadId,
+      uploadUrl: response.uploadUrl
+    };
   }
 
   /**
-   * Upload a file to the pre-signed URL
-   * @param uploadUrl - The pre-signed URL
+   * Upload a file to the provided URL
+   * @param uploadUrl - The presigned upload URL
    * @param file - The file to upload
    */
   async uploadFile(uploadUrl: string, file: File): Promise<void> {
-    await fetch(uploadUrl, {
+    console.log(`Uploading file to: ${uploadUrl}`);
+    const response = await fetch(uploadUrl, {
       method: 'PUT',
       body: file,
       headers: {
         'Content-Type': file.type
       }
     });
-  }
-
-  /**
-   * Delete an import
-   * @param accountId - The account ID
-   * @param uploadId - The upload ID
-   */
-  async deleteImport(accountId: string, uploadId: string): Promise<void> {
-    await this.api.delete(`/accounts/${accountId}/imports/${uploadId}`);
-  }
-
-  /**
-   * Confirm an import for processing
-   * @param params - The confirmation parameters
-   */
-  async confirmImport(params: {
-    accountId: string;
-    uploadId: string;
-    userConfirmations: {
-      accountVerified: boolean;
-      dateRangeVerified: boolean;
-      samplesReviewed: boolean;
-    };
-    duplicateHandling: 'SKIP' | 'REPLACE' | 'MARK_DUPLICATE';
-    notes?: string;
-  }): Promise<void> {
-    await this.api.post(`/accounts/${params.accountId}/imports/${params.uploadId}/confirm`, {
-      userConfirmations: params.userConfirmations,
-      duplicateHandling: params.duplicateHandling,
-      notes: params.notes
-    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to upload file: ${response.statusText}`);
+    }
   }
 
   /**
@@ -148,19 +271,19 @@ class ImportService {
     currentAccountId: string,
     newAccountId: string
   ): Promise<AccountAssignment> {
-    const response = await this.api.post(`/accounts/${currentAccountId}/imports/${uploadId}/reassign`, {
+    console.log(`Reassigning import ${uploadId} from ${currentAccountId} to ${newAccountId}`);
+    const response = await this.api.post(`/imports/${uploadId}/reassign`, {
       currentAccountId,
       newAccountId
     });
-    
-    return response.data;
+    return response;
   }
 
   /**
-   * Parse a CSV file into transactions
-   * @param file - The CSV file to parse
-   * @param accountId - The account ID to assign transactions to
-   * @param options - Parsing options
+   * Parse a transaction file for preview
+   * @param file - The file to parse
+   * @param accountId - The account ID
+   * @param options - Optional parsing options
    */
   async parseTransactionFile(
     file: File, 
@@ -171,43 +294,54 @@ class ImportService {
       skipHeaderRow?: boolean;
     }
   ): Promise<ParsedTransactionFile> {
+    console.log(`Parsing transaction file: ${file.name}`);
+    
+    // For client-side parsing, read the file content
+    const fileContent = await this.readFileContent(file);
+    
+    // For CSV files, use the parseCSV function
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      const transactions = this.parseCSV(fileContent, accountId, options);
+      return {
+        transactions,
+        fileName: file.name,
+        fileType: 'csv'
+      };
+    }
+    
+    // For other formats, call the API
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    if (options) {
+      formData.append('options', JSON.stringify(options));
+    }
+    
+    // Use encodeURIComponent to handle special characters in account ID
+    const encodedAccountId = encodeURIComponent(accountId);
+    
+    const response = await this.api.post(`/accounts/${encodedAccountId}/parse-file`, formData);
+    return response;
+  }
+  
+  /**
+   * Read file content as text
+   * @param file - The file to read
+   */
+  private async readFileContent(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      
-      reader.onload = (event) => {
-        try {
-          const content = event.target?.result as string;
-          if (!content) {
-            reject(new Error('Failed to read file content'));
-            return;
-          }
-          
-          // Parse CSV content
-          const transactions = this.parseCSV(content, accountId, options);
-          
-          resolve({
-            transactions,
-            fileName: file.name,
-            fileType: file.type
-          });
-        } catch (error) {
-          reject(error);
-        }
-      };
-      
-      reader.onerror = () => {
-        reject(new Error('Failed to read file'));
-      };
-      
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = (e) => reject(new Error('Failed to read file'));
       reader.readAsText(file);
     });
   }
   
   /**
-   * Parse CSV content into transactions
+   * Parse CSV content
    * @param content - The CSV content
    * @param accountId - The account ID
-   * @param options - Parsing options
+   * @param options - Optional parsing options
    */
   private parseCSV(
     content: string, 
@@ -219,81 +353,45 @@ class ImportService {
     }
   ): Transaction[] {
     // Split content into lines
-    const lines = content.split(/\r?\n/).filter(line => line.trim());
+    const lines = content.split('\n').filter(line => line.trim().length > 0);
     
     // Skip header row if specified
     const dataLines = options?.skipHeaderRow ? lines.slice(1) : lines;
     
-    // Default column mapping
-    const columnMap = options?.columnMapping || {
-      date: '0',
-      description: '1',
-      amount: '2',
-      category: '3'
-    };
-    
-    // Parse each line into a transaction
+    // Parse each line
     return dataLines.map((line, index) => {
-      const columns = line.split(',').map(col => col.trim().replace(/^"|"$/g, ''));
+      const columns = line.split(',').map(col => col.trim());
       
-      // Extract values based on column mapping
-      const dateIndex = parseInt(columnMap.date);
-      const descriptionIndex = parseInt(columnMap.description);
-      const amountIndex = parseInt(columnMap.amount);
-      const categoryIndex = parseInt(columnMap.category);
+      // Use column mapping if provided, otherwise use default mapping
+      let date = columns[0];
+      let description = columns[1];
+      let amount = parseFloat(columns[2]);
       
-      const dateStr = columns[dateIndex];
-      const description = columns[descriptionIndex] || 'Unknown';
-      const amountStr = columns[amountIndex];
-      const category = columns[categoryIndex];
-      
-      // Parse date
-      let date: Date;
-      try {
-        date = new Date(dateStr);
-        if (isNaN(date.getTime())) {
-          // Try alternative formats
-          const parts = dateStr.split(/[\/\-\.]/);
-          if (parts.length === 3) {
-            // Assume MM/DD/YYYY format
-            date = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
-          }
-        }
-      } catch (e) {
-        date = new Date();
+      if (options?.columnMapping) {
+        date = columns[options.columnMapping.date ? parseInt(options.columnMapping.date) : 0];
+        description = columns[options.columnMapping.description ? parseInt(options.columnMapping.description) : 1];
+        amount = parseFloat(columns[options.columnMapping.amount ? parseInt(options.columnMapping.amount) : 2]);
       }
-      
-      // Parse amount
-      let amount = 0;
-      try {
-        // Remove currency symbols and commas
-        const cleanAmount = amountStr.replace(/[$,]/g, '');
-        amount = parseFloat(cleanAmount);
-      } catch (e) {
-        amount = 0;
-      }
-      
-      // Determine transaction type based on amount
-      const type = amount >= 0 ? 'income' : 'expense';
       
       // Create transaction object
       return {
-        id: `import-${index}-${Date.now()}`,
-        accountId: accountId,
+        id: `temp-${index}`,
+        accountId,
         date,
-        amount: Math.abs(amount),
         description,
-        category,
-        type
+        amount,
+        type: amount < 0 ? 'expense' : 'income',
+        category: '',
+        tags: []
       };
     });
   }
   
   /**
-   * Import transactions directly (without server-side processing)
+   * Import transactions into an account
    * @param accountId - The account ID
    * @param transactions - The transactions to import
-   * @param options - Import options
+   * @param options - Optional import options
    */
   async importTransactions(
     accountId: string,
@@ -302,48 +400,54 @@ class ImportService {
       duplicateHandling?: 'SKIP' | 'REPLACE' | 'MARK_DUPLICATE';
     }
   ): Promise<TransactionImportResult> {
-    // In a real app, this would call the API
-    // const response = await this.api.post(`/accounts/${accountId}/transactions/batch`, {
-    //   transactions,
-    //   options
-    // });
+    console.log(`Importing ${transactions.length} transactions to account: ${accountId}`);
     
-    // For now, simulate a successful import
-    return {
-      totalTransactions: transactions.length,
-      importedTransactions: transactions.length,
-      skippedTransactions: 0,
-      duplicateTransactions: 0,
-      transactions
-    };
+    // Use encodeURIComponent to handle special characters in account ID
+    const encodedAccountId = encodeURIComponent(accountId);
+    
+    const response = await this.api.post(`/accounts/${encodedAccountId}/transactions/import`, {
+      transactions,
+      options
+    });
+    
+    return response;
   }
-
+  
+  /**
+   * Poll for import analysis result
+   * @param accountId - The account ID
+   * @param uploadId - The upload ID
+   */
   async pollForAnalysis(accountId: string, uploadId: string): Promise<ImportAnalysis> {
-    const maxAttempts = 30;
-    const delayMs = 2000;
-    let attempts = 0;
-
-    while (attempts < maxAttempts) {
-      const status = await this.getImportStatus(accountId, uploadId);
+    console.log(`Polling for analysis result: ${accountId}, ${uploadId}`);
+    
+    // Use encodeURIComponent to handle special characters in account ID
+    const encodedAccountId = encodeURIComponent(accountId);
+    
+    // Retry up to 10 times with exponential backoff
+    let retries = 0;
+    const maxRetries = 10;
+    const baseDelay = 2000;
+    
+    while (retries < maxRetries) {
+      const status = await this.getImportStatus(encodedAccountId, uploadId);
       
-      if (status.status === 'READY') {
+      if (status.status === 'ANALYSIS_COMPLETE') {
         return status.analysisData;
       }
       
       if (status.status === 'FAILED') {
         throw new Error(status.error?.message || 'Import analysis failed');
       }
-
-      if (status.status === 'WRONG_ACCOUNT_DETECTED') {
-        throw new Error('Wrong account detected');
-      }
-
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-      attempts++;
+      
+      // Wait with exponential backoff
+      const delay = baseDelay * Math.pow(1.5, retries);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      retries++;
     }
-
-    throw new Error('Timeout waiting for analysis');
+    
+    throw new Error('Import analysis timed out');
   }
 }
 
-export const importService = new ImportService(); 
+export const importService = new ImportService(new API()); 

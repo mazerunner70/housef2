@@ -5,12 +5,14 @@
   "scripts": {
     "clean": "rm -rf dist",
     "generate-env": "node scripts/generate-env.js",
-    "start": "npm run generate-env && webpack serve --mode development",
-    "build": "npm run clean && npm run generate-env && webpack --mode production",
+    "start": "npm run generate-env && ts-node ./node_modules/.bin/webpack serve --mode development --config webpack.config.ts",
+    "build": "npm run clean && npm run generate-env && ts-node ./node_modules/.bin/webpack --mode production --config webpack.config.ts",
     "test": "jest",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/signature-v4": "^3.370.0",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.11.16",
@@ -19,6 +21,7 @@
     "amazon-cognito-identity-js": "^6.3.7",
     "date-fns": "^2.30.0",
     "jwt-decode": "^4.0.0",
+    "notistack": "^3.0.2",
     "process": "^0.11.10",
     "qrcode.react": "^3.1.0",
     "react": "^18.2.0",
@@ -33,6 +36,8 @@
     "@types/qrcode.react": "^1.0.5",
     "@types/react": "^18.2.6",
     "@types/react-dom": "^18.2.4",
+    "@types/webpack": "^5.28.5",
+    "@types/webpack-dev-server": "^4.7.2",
     "css-loader": "^6.7.3",
     "dotenv": "^16.4.7",
     "html-loader": "^5.1.0",

@@ -46,41 +46,6 @@ import TransactionDialog from '../components/transactions/TransactionDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { transactionService } from '../services/transactionService';
 
-// Mock data for development
-const mockTransactions: Transaction[] = Array.from({ length: 50 }, (_, i) => ({
-  id: `tx-${i}`,
-  accountId: 'account-123',
-  date: new Date(2023, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1),
-  amount: Math.random() > 0.7 
-    ? Math.round(Math.random() * 1000 * 100) / 100 
-    : -Math.round(Math.random() * 1000 * 100) / 100,
-  description: [
-    'Grocery shopping', 
-    'Salary payment', 
-    'Restaurant bill', 
-    'Utility bill', 
-    'Online purchase', 
-    'Gas station',
-    'Coffee shop',
-    'Rent payment',
-    'Subscription fee',
-    'Transfer'
-  ][Math.floor(Math.random() * 10)],
-  category: [
-    'Food', 
-    'Income', 
-    'Dining', 
-    'Utilities', 
-    'Shopping', 
-    'Transportation',
-    'Entertainment',
-    'Housing',
-    'Subscriptions',
-    'Transfers'
-  ][Math.floor(Math.random() * 10)],
-  type: Math.random() > 0.3 ? 'expense' : 'income'
-}));
-
 // Sort functions
 type Order = 'asc' | 'desc';
 type OrderBy = keyof Transaction;
@@ -165,27 +130,32 @@ const TransactionsPage: React.FC = () => {
 
   // Load transactions
   useEffect(() => {
-    // In a real app, you would fetch from an API
-    setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+    const loadTransactions = async () => {
+      setLoading(true);
+      setError(null);
+      
       try {
-        setTransactions(mockTransactions);
+        if (!currentUser?.accountId) {
+          throw new Error('No account ID available');
+        }
+        
+        const result = await transactionService.getTransactions(currentUser.accountId);
+        setTransactions(result);
         
         // Extract unique categories
         const uniqueCategories = Array.from(
-          new Set(mockTransactions.map(tx => tx.category).filter(Boolean))
+          new Set(result.map(tx => tx.category).filter(Boolean))
         ) as string[];
         setCategories(uniqueCategories);
-        
-        setLoading(false);
       } catch (err) {
-        setError('Failed to load transactions');
+        setError(err instanceof Error ? err.message : 'Failed to load transactions');
+      } finally {
         setLoading(false);
       }
-    }, 1000);
-  }, []);
+    };
+
+    loadTransactions();
+  }, [currentUser]);
 
   // Filter transactions
   const filteredTransactions = transactions.filter(transaction => {
@@ -308,7 +278,7 @@ const TransactionsPage: React.FC = () => {
     setTimeout(() => {
       try {
         // In a real app, you would fetch from an API
-        setTransactions(mockTransactions);
+        setTransactions(transactions);
         setLoading(false);
       } catch (err) {
         setError('Failed to refresh transactions');

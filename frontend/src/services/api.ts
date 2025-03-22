@@ -1,123 +1,220 @@
 import { authService } from './auth';
+import { SignatureV4 } from '@aws-sdk/signature-v4';
+import { Sha256 } from '@aws-crypto/sha256-js';
 
 export class API {
   private baseUrl: string;
-  private apiPrefix: string = '';
-  private useProxy: boolean = false;
+  private region: string;
 
-  constructor() {
-    this.baseUrl = window.env?.REACT_APP_API_URL || '';
-    if (!this.baseUrl) {
-      console.warn('API URL not found in environment variables');
-    }
+  constructor(baseUrl?: string) {
+    this.region = window.env?.REACT_APP_AWS_REGION || 'eu-west-2';
     
-    // Check if we're running in local development (localhost)
-    const isLocalDevelopment = window.location.hostname === 'localhost' || 
-                               window.location.hostname === '127.0.0.1';
-    
-    // If we're in local development, use the proxy
-    if (isLocalDevelopment) {
-      console.log('Running in local development environment, using CORS proxy');
-      this.useProxy = true;
-      // The proxy URL is relative to the web server
-      this.baseUrl = '/api-proxy'; 
-    } 
-    // CloudFront path-based routing check
-    else if (!this.baseUrl.includes('execute-api.')) {
-      this.apiPrefix = '/api';
-      console.log('Using CloudFront distribution with /api prefix');
-    } else {
-      console.log('Using API Gateway directly, no prefix needed');
-    }
+    // Always use the proxy
+    this.baseUrl = '/api';
+    console.log('Using webpack dev server proxy at /api');
   }
 
-  private async getAuthHeaders(): Promise<HeadersInit> {
+  /**
+   * Get authentication headers for API requests
+   */
+  private async getAuthHeaders(): Promise<Record<string, string>> {
     try {
-      // Get the current user session to include the token
-      const user = await authService.getCurrentUser();
-      const session = await new Promise<any>((resolve, reject) => {
-        const cognitoUser = authService['userPool'].getCurrentUser();
-        if (!cognitoUser) {
-          reject(new Error('No user found'));
-          return;
-        }
-        
-        cognitoUser.getSession((err: Error | null, session: any) => {
-          if (err || !session) {
-            reject(err || new Error('Invalid session'));
+      // Basic headers that are always included
+      const baseHeaders = {
+        'Content-Type': 'application/json',
+      };
+
+      // Get current user from auth service
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
+        console.warn('No current user found');
+        return baseHeaders;
+      }
+
+      // Get current user session
+      const cognitoUser = window.userPool?.getCurrentUser();
+      if (!cognitoUser) {
+        console.warn('No Cognito user found in session');
+        return baseHeaders;
+      }
+
+      return new Promise((resolve, reject) => {
+        cognitoUser.getSession(async (err: any, session: any) => {
+          if (err) {
+            console.error('Error getting session:', err);
+            resolve(baseHeaders);
             return;
           }
-          resolve(session);
+
+          if (!session?.isValid()) {
+            console.warn('Session is not valid');
+            resolve(baseHeaders);
+            return;
+          }
+
+          try {
+            // Get the ID token
+            const idToken = session.getIdToken().getJwtToken();
+            
+            // Use ID token for authorization
+            const headers = {
+              ...baseHeaders,
+              'Authorization': `Bearer ${idToken}`
+            };
+
+            console.log('Request headers:', {
+              ...headers,
+              'Authorization': headers.Authorization ? 'Bearer [token]' : 'none'
+            });
+
+            resolve(headers);
+          } catch (error) {
+            console.error('Error getting ID token:', error);
+            resolve(baseHeaders);
+          }
         });
       });
-
-      return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.getIdToken().getJwtToken()}`
-      };
     } catch (error) {
-      console.error('Error getting auth headers:', error);
-      return {
-        'Content-Type': 'application/json'
-      };
+      console.error('Error in getAuthHeaders:', error);
+      return { 'Content-Type': 'application/json' };
     }
   }
 
-  async get(endpoint: string): Promise<any> {
-    const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${this.apiPrefix}${endpoint}`, {
-      method: 'GET',
-      headers
-    });
+  /**
+   * Send a GET request
+   * @param path - The API path (without leading slash)
+   */
+  async get(path: string): Promise<any> {
+    try {
+      // Ensure path doesn't start with a slash
+      const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      const url = `${this.baseUrl}/${cleanPath}`;
+      
+      console.log(`Making GET request to: ${url}`);
+      const headers = await this.getAuthHeaders();
+      console.log('Headers for request:', headers);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      // Log response status
+      console.log(`Response status: ${response.status} for ${url}`);
+      
+      if (!response.ok) {
+        if (response.status === 403) {
+          console.error('Authentication error (403 Forbidden). Please check authentication setup.');
+        } else if (response.status === 404) {
+          console.error(`Resource not found at ${url}`);
+        }
+        
+        const errorText = await response.text();
+        console.error(`API error (${response.status}): ${errorText}`);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error(`GET request failed for ${path}:`, error);
+      throw error;
     }
-
-    return response.json();
   }
 
-  async post(endpoint: string, data: any): Promise<any> {
-    const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${this.apiPrefix}${endpoint}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(data)
-    });
+  /**
+   * Send a POST request
+   * @param path - The API path (without leading slash)
+   * @param data - The data to send
+   */
+  async post(path: string, data: any): Promise<any> {
+    try {
+      // Ensure path doesn't start with a slash
+      const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      const url = `${this.baseUrl}/${cleanPath}`;
+      
+      console.log(`Making POST request to: ${url}`);
+      const headers = await this.getAuthHeaders();
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+      });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error (${response.status}): ${errorText}`);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error(`POST request failed for ${path}:`, error);
+      throw error;
     }
-
-    return response.json();
   }
 
-  async put(endpoint: string, data: any): Promise<any> {
-    const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${this.apiPrefix}${endpoint}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(data)
-    });
+  /**
+   * Send a PUT request
+   * @param path - The API path (without leading slash)
+   * @param data - The data to send
+   */
+  async put(path: string, data: any): Promise<any> {
+    try {
+      // Ensure path doesn't start with a slash
+      const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      const url = `${this.baseUrl}/${cleanPath}`;
+      
+      console.log(`Making PUT request to: ${url}`);
+      const headers = await this.getAuthHeaders();
+      
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(data),
+      });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error (${response.status}): ${errorText}`);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error(`PUT request failed for ${path}:`, error);
+      throw error;
     }
-
-    return response.json();
   }
 
-  async delete(endpoint: string): Promise<any> {
-    const headers = await this.getAuthHeaders();
-    const response = await fetch(`${this.baseUrl}${this.apiPrefix}${endpoint}`, {
-      method: 'DELETE',
-      headers
-    });
+  /**
+   * Send a DELETE request
+   * @param path - The API path (without leading slash)
+   */
+  async delete(path: string): Promise<any> {
+    try {
+      // Ensure path doesn't start with a slash
+      const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      const url = `${this.baseUrl}/${cleanPath}`;
+      
+      console.log(`Making DELETE request to: ${url}`);
+      const headers = await this.getAuthHeaders();
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers,
+      });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error (${response.status}): ${errorText}`);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error(`DELETE request failed for ${path}:`, error);
+      throw error;
     }
-
-    return response.json();
   }
 } 

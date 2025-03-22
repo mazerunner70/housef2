@@ -1,0 +1,9 @@
+# Cursor rules for the HouseF2 project
+
+
+
+# Development environment
+DO NOT USE_MOCK_DATA_IN_DEV
+ALWAYS USE PRODUCTION DATA IN Development
+
+

@@ -1,524 +1,303 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Container, 
-  Typography, 
-  Box, 
-  Paper, 
-  Button, 
-  Tabs, 
-  Tab, 
-  Alert, 
-  Snackbar,
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Button,
   Card,
   CardContent,
-  Grid,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
-  IconButton,
   CircularProgress,
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
-  TextField
+  DialogContent,
+  DialogTitle,
+  Grid,
+  IconButton,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemSecondaryAction,
+  ListItemText,
+  Paper,
+  Typography,
+  useTheme
 } from '@mui/material';
-import { 
-  CloudUpload as UploadIcon,
-  History as HistoryIcon,
-  Settings as SettingsIcon,
+import {
+  CloudUpload as CloudUploadIcon,
   Delete as DeleteIcon,
-  Download as DownloadIcon,
-  Visibility as ViewIcon,
-  CloudDownload as ImportIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  Pending as PendingIcon
 } from '@mui/icons-material';
-import { useDropzone } from 'react-dropzone';
-import { format } from 'date-fns';
-import { importService, ImportStatus } from '../services/importService';
-import { useAuth } from '../contexts/AuthContext';
+import { ImportListItem, ImportAnalysis } from '../types/import';
+import { importService } from '../services/importService';
+import { useSnackbar } from 'notistack';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
+const Import: React.FC = () => {
+  const theme = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
+  const [imports, setImports] = useState<ImportListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [selectedImport, setSelectedImport] = useState<ImportListItem | null>(null);
+  const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null);
+  const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
 
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`import-tabpanel-${index}`}
-      aria-labelledby={`import-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
-
-function a11yProps(index: number) {
-  return {
-    id: `import-tab-${index}`,
-    'aria-controls': `import-tabpanel-${index}`,
-  };
-}
-
-const ImportPage: React.FC = () => {
-  const [tabValue, setTabValue] = useState(0);
-  const [imports, setImports] = useState<ImportStatus[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedImport, setSelectedImport] = useState<ImportStatus | null>(null);
-  const [notes, setNotes] = useState('');
-  const { currentUser } = useAuth();
-  
-  // Load imports when the component mounts
   useEffect(() => {
-    if (currentUser?.accountId) {
-      loadImports();
-    }
-  }, [currentUser]);
-  
+    loadImports();
+  }, []);
+
   const loadImports = async () => {
-    if (!currentUser?.accountId) return;
-    
-    setLoading(true);
-    setError(null);
-    
     try {
-      const importList = await importService.getImports(currentUser.accountId);
+      setLoading(true);
+      const importList = await importService.getImports();
       setImports(importList);
-    } catch (err) {
-      setError('Failed to load imports. Please try again.');
-      console.error('Error loading imports:', err);
+    } catch (error) {
+      console.error('Error loading imports:', error);
+      enqueueSnackbar('Failed to load imports', { variant: 'error' });
     } finally {
       setLoading(false);
     }
   };
-  
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-  
-  // File upload handling with react-dropzone
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!currentUser?.accountId || acceptedFiles.length === 0) return;
-    
-    const file = acceptedFiles[0];
-    setLoading(true);
-    setError(null);
-    
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
     try {
-      // Initiate the import
-      const { uploadUrl, uploadId } = await importService.initiateImport(currentUser.accountId, file);
-      
-      // Upload the file
-      await importService.uploadFile(uploadUrl, file);
-      
-      // Refresh the import list
-      await loadImports();
-      
-      setSuccessMessage(`File "${file.name}" uploaded successfully`);
-    } catch (err) {
-      setError('Failed to upload file. Please try again.');
-      console.error('Error uploading file:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser]);
-  
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'text/csv': ['.csv'],
-      'application/vnd.ms-excel': ['.csv', '.xls'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
-    },
-    maxFiles: 1
-  });
-  
-  const handleDeleteImport = async (importId: string) => {
-    if (!currentUser?.accountId) return;
-    
-    try {
-      await importService.deleteImport(currentUser.accountId, importId);
-      setImports(imports.filter(imp => imp.uploadId !== importId));
-      setSuccessMessage('Import deleted successfully');
-    } catch (err) {
-      setError('Failed to delete import. Please try again.');
-      console.error('Error deleting import:', err);
-    }
-  };
-  
-  const handleViewImport = (importItem: ImportStatus) => {
-    setSelectedImport(importItem);
-    setOpenDialog(true);
-  };
-  
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setSelectedImport(null);
-    setNotes('');
-  };
-  
-  const handleProcessImport = async () => {
-    if (!currentUser?.accountId || !selectedImport) return;
-    
-    setLoading(true);
-    
-    try {
-      await importService.confirmImport({
-        accountId: currentUser.accountId,
-        uploadId: selectedImport.uploadId,
-        userConfirmations: {
-          accountVerified: true,
-          dateRangeVerified: true,
-          samplesReviewed: true
-        },
-        duplicateHandling: 'SKIP',
-        notes: notes
+      setUploading(true);
+      const fileType = file.name.split('.').pop()?.toLowerCase() || '';
+      const { uploadUrl, uploadId } = await importService.getUploadUrl(file.name, fileType);
+
+      // Upload file to S3
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': importService.getContentType(fileType)
+        }
       });
-      
-      await loadImports();
-      setSuccessMessage('Import processing started');
-      handleCloseDialog();
-    } catch (err) {
-      setError('Failed to process import. Please try again.');
-      console.error('Error processing import:', err);
+
+      enqueueSnackbar('File uploaded successfully', { variant: 'success' });
+      loadImports();
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      enqueueSnackbar('Failed to upload file', { variant: 'error' });
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
   };
-  
-  const renderFileUpload = () => (
-    <Paper
-      {...getRootProps()}
-      sx={{
-        p: 4,
-        mb: 4,
-        border: '2px dashed',
-        borderColor: isDragActive ? 'primary.main' : 'grey.400',
-        bgcolor: isDragActive ? 'primary.50' : 'background.paper',
-        textAlign: 'center',
-        cursor: 'pointer',
-        transition: 'all 0.3s ease'
-      }}
-    >
-      <input {...getInputProps()} />
-      <UploadIcon sx={{ fontSize: 48, color: isDragActive ? 'primary.main' : 'grey.500', mb: 2 }} />
-      <Typography variant="h6" gutterBottom>
-        {isDragActive ? 'Drop the file here' : 'Drag & drop a file here, or click to select'}
-      </Typography>
-      <Typography color="textSecondary" variant="body2">
-        Supported formats: CSV, XLS, XLSX
-      </Typography>
-      {loading && (
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-          <CircularProgress size={24} />
-        </Box>
-      )}
-    </Paper>
-  );
-  
-  const renderImportList = () => (
-    <TableContainer component={Paper}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>File Name</TableCell>
-            <TableCell>Upload Date</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {imports.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={4} align="center">
-                No imports found. Upload a file to get started.
-              </TableCell>
-            </TableRow>
-          ) : (
-            imports.map((importItem) => (
-              <TableRow key={importItem.uploadId}>
-                <TableCell>{importItem.fileName}</TableCell>
-                <TableCell>{format(new Date(importItem.createdAt), 'MMM d, yyyy h:mm a')}</TableCell>
-                <TableCell>
-                  <Chip 
-                    label={importItem.status} 
-                    color={
-                      importItem.status === 'COMPLETED' ? 'success' :
-                      importItem.status === 'FAILED' ? 'error' :
-                      importItem.status === 'PROCESSING' ? 'warning' : 'default'
-                    }
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <IconButton 
-                    size="small" 
-                    onClick={() => handleViewImport(importItem)}
-                    disabled={importItem.status === 'PROCESSING'}
-                  >
-                    <ViewIcon fontSize="small" />
-                  </IconButton>
-                  {importItem.status === 'UPLOADED' && (
-                    <IconButton 
-                      size="small" 
-                      color="primary"
-                      onClick={() => handleViewImport(importItem)}
-                    >
-                      <ImportIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                  <IconButton 
-                    size="small" 
-                    color="error"
-                    onClick={() => handleDeleteImport(importItem.uploadId)}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-  
-  const renderImportSettings = () => (
-    <Paper sx={{ p: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        Import Settings
-      </Typography>
-      <Typography color="textSecondary" paragraph>
-        Configure your default import settings below.
-      </Typography>
-      
-      <Alert severity="info" sx={{ mb: 3 }}>
-        Import settings will be saved and applied to future imports automatically.
-      </Alert>
-      
-      <Typography variant="subtitle1" gutterBottom>
-        Coming soon:
-      </Typography>
-      <ul>
-        <li>Default category mapping</li>
-        <li>Merchant name normalization</li>
-        <li>Automatic categorization rules</li>
-        <li>Duplicate handling preferences</li>
-      </ul>
-    </Paper>
-  );
-  
+
+  const handleDeleteImport = async (uploadId: string) => {
+    try {
+      await importService.deleteImport(uploadId);
+      enqueueSnackbar('Import deleted successfully', { variant: 'success' });
+      loadImports();
+    } catch (error) {
+      console.error('Error deleting import:', error);
+      enqueueSnackbar('Failed to delete import', { variant: 'error' });
+    }
+  };
+
+  const handleViewAnalysis = async (importItem: ImportListItem) => {
+    try {
+      const analysisData = await importService.getImportAnalysis(importItem.uploadId);
+      setSelectedImport(importItem);
+      setAnalysis(analysisData);
+      setAnalysisDialogOpen(true);
+    } catch (error) {
+      console.error('Error loading analysis:', error);
+      enqueueSnackbar('Failed to load import analysis', { variant: 'error' });
+    }
+  };
+
+  const getStatusIcon = (status: ImportListItem['status']) => {
+    switch (status) {
+      case 'PENDING':
+        return <PendingIcon color="action" />;
+      case 'ANALYZING':
+        return <CircularProgress size={24} />;
+      case 'READY':
+        return <CheckCircleIcon color="success" />;
+      case 'ERROR':
+        return <ErrorIcon color="error" />;
+      default:
+        return null;
+    }
+  };
+
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Import Transactions
-      </Typography>
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-      
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs 
-          value={tabValue} 
-          onChange={handleTabChange} 
-          aria-label="import tabs"
-          variant="fullWidth"
-        >
-          <Tab label="Upload" icon={<UploadIcon />} iconPosition="start" {...a11yProps(0)} />
-          <Tab label="History" icon={<HistoryIcon />} iconPosition="start" {...a11yProps(1)} />
-          <Tab label="Settings" icon={<SettingsIcon />} iconPosition="start" {...a11yProps(2)} />
-        </Tabs>
-      </Box>
-      
-      <TabPanel value={tabValue} index={0}>
-        <Typography variant="h6" gutterBottom>
-          Upload Transaction File
-        </Typography>
-        <Typography paragraph>
-          Upload a CSV or Excel file containing your transactions. The file will be processed and you'll be able to review the transactions before importing them.
-        </Typography>
-        
-        {renderFileUpload()}
-        
-        <Typography variant="h6" gutterBottom>
-          Recent Uploads
-        </Typography>
-        {renderImportList()}
-      </TabPanel>
-      
-      <TabPanel value={tabValue} index={1}>
-        <Typography variant="h6" gutterBottom>
-          Import History
-        </Typography>
-        <Typography paragraph>
-          View all your previous imports and their status.
-        </Typography>
-        
-        {loading && imports.length === 0 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          renderImportList()
-        )}
-        
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button 
-            variant="outlined" 
-            startIcon={<RefreshIcon />} 
-            onClick={loadImports}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
-        </Box>
-      </TabPanel>
-      
-      <TabPanel value={tabValue} index={2}>
-        {renderImportSettings()}
-      </TabPanel>
-      
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+    <Box sx={{ p: 3 }}>
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Typography variant="h4" gutterBottom>
+            Import Transactions
+          </Typography>
+          <Typography variant="body1" color="text.secondary" paragraph>
+            Upload transaction files from your bank or credit card statements
+          </Typography>
+        </Grid>
+
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Box
+                sx={{
+                  border: `2px dashed ${theme.palette.divider}`,
+                  borderRadius: 1,
+                  p: 3,
+                  textAlign: 'center'
+                }}
+              >
+                <input
+                  accept=".csv,.ofx,.qif"
+                  style={{ display: 'none' }}
+                  id="file-upload"
+                  type="file"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+                <label htmlFor="file-upload">
+                  <Button
+                    variant="contained"
+                    component="span"
+                    startIcon={<CloudUploadIcon />}
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading...' : 'Select File'}
+                  </Button>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Supported formats: CSV, OFX, QIF
+                  </Typography>
+                </label>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12}>
+          <Paper>
+            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="h6">Recent Imports</Typography>
+              <IconButton onClick={loadImports} disabled={loading}>
+                <RefreshIcon />
+              </IconButton>
+            </Box>
+            {loading ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <List>
+                {imports.map((importItem) => (
+                  <ListItem key={importItem.uploadId} divider>
+                    <ListItemIcon>
+                      {getStatusIcon(importItem.status)}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={importItem.fileName}
+                      secondary={
+                        <>
+                          <Typography component="span" variant="body2">
+                            {new Date(importItem.uploadTime).toLocaleString()}
+                          </Typography>
+                          {importItem.fileStats && (
+                            <Typography component="span" variant="body2" sx={{ ml: 1 }}>
+                              • {importItem.fileStats.transactionCount} transactions
+                            </Typography>
+                          )}
+                        </>
+                      }
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        edge="end"
+                        onClick={() => handleViewAnalysis(importItem)}
+                        disabled={importItem.status === 'ANALYZING'}
+                      >
+                        <WarningIcon />
+                      </IconButton>
+                      <IconButton
+                        edge="end"
+                        onClick={() => handleDeleteImport(importItem.uploadId)}
+                        disabled={importItem.status === 'ANALYZING'}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+                {imports.length === 0 && (
+                  <ListItem>
+                    <ListItemText
+                      primary="No imports found"
+                      secondary="Upload a transaction file to get started"
+                    />
+                  </ListItem>
+                )}
+              </List>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Dialog
+        open={analysisDialogOpen}
+        onClose={() => setAnalysisDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>
-          {selectedImport?.status === 'UPLOADED' ? 'Process Import' : 'Import Details'}
+          Import Analysis: {selectedImport?.fileName}
         </DialogTitle>
         <DialogContent>
-          {selectedImport && (
+          {analysis && (
             <Box>
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2">File Name</Typography>
-                  <Typography>{selectedImport.fileName}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2">Upload Date</Typography>
-                  <Typography>
-                    {format(new Date(selectedImport.createdAt), 'MMM d, yyyy h:mm a')}
+              <Typography variant="h6" gutterBottom>File Statistics</Typography>
+              <Typography>
+                Transactions: {analysis.fileStats.transactionCount}
+              </Typography>
+              <Typography>
+                Date Range: {new Date(analysis.fileStats.dateRange.start).toLocaleDateString()} - {new Date(analysis.fileStats.dateRange.end).toLocaleDateString()}
+              </Typography>
+
+              <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>Overlap Analysis</Typography>
+              <Typography>
+                New Transactions: {analysis.overlapStats.newTransactions}
+              </Typography>
+              <Typography>
+                Existing Transactions: {analysis.overlapStats.existingTransactions}
+              </Typography>
+              <Typography>
+                Potential Duplicates: {analysis.overlapStats.potentialDuplicates}
+              </Typography>
+
+              {analysis.errors && analysis.errors.length > 0 && (
+                <>
+                  <Typography variant="h6" gutterBottom sx={{ mt: 2, color: 'error.main' }}>
+                    Errors
                   </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2">Status</Typography>
-                  <Chip 
-                    label={selectedImport.status} 
-                    color={
-                      selectedImport.status === 'COMPLETED' ? 'success' :
-                      selectedImport.status === 'FAILED' ? 'error' :
-                      selectedImport.status === 'PROCESSING' ? 'warning' : 'default'
-                    }
-                    size="small"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2">Last Updated</Typography>
-                  <Typography>
-                    {format(new Date(selectedImport.updatedAt), 'MMM d, yyyy h:mm a')}
-                  </Typography>
-                </Grid>
-              </Grid>
-              
-              {selectedImport.status === 'UPLOADED' && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Import Notes (Optional)
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={3}
-                    placeholder="Add any notes about this import..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </Box>
-              )}
-              
-              {selectedImport.error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {selectedImport.error.message}
-                </Alert>
-              )}
-              
-              {selectedImport.analysisData && (
-                <Box sx={{ mt: 3 }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Analysis Results
-                  </Typography>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableBody>
-                        <TableRow>
-                          <TableCell>Total Transactions</TableCell>
-                          <TableCell align="right">
-                            {selectedImport.analysisData.fileStats?.transactionCount || 0}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Date Range</TableCell>
-                          <TableCell align="right">
-                            {selectedImport.analysisData.fileStats?.dateRange?.start} to {selectedImport.analysisData.fileStats?.dateRange?.end}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Potential Duplicates</TableCell>
-                          <TableCell align="right">
-                            {selectedImport.analysisData.overlapStats?.potentialDuplicates || 0}
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
+                  <List>
+                    {analysis.errors.map((error, index) => (
+                      <ListItem key={index}>
+                        <ListItemIcon>
+                          <ErrorIcon color="error" />
+                        </ListItemIcon>
+                        <ListItemText primary={error} />
+                      </ListItem>
+                    ))}
+                  </List>
+                </>
               )}
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog}>
-            Close
-          </Button>
-          {selectedImport?.status === 'UPLOADED' && (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleProcessImport}
-              disabled={loading}
-              startIcon={loading ? <CircularProgress size={20} /> : <ImportIcon />}
-            >
-              Process Import
-            </Button>
-          )}
+          <Button onClick={() => setAnalysisDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-      
-      <Snackbar
-        open={!!successMessage}
-        autoHideDuration={6000}
-        onClose={() => setSuccessMessage(null)}
-        message={successMessage}
-      />
-    </Container>
+    </Box>
   );
 };
 
-export default ImportPage; 
+export default Import; 

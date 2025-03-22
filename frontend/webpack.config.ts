@@ -5,8 +5,7 @@ import { Configuration as WebpackDevServerConfiguration } from 'webpack-dev-serv
 import dotenv from 'dotenv';
 
 // Load environment variables from .env file
-const result = dotenv.config();
-console.log('DOTENV RESULT:', result);
+dotenv.config();
 
 class DiagnosticPlugin {
   apply(compiler: any) {
@@ -62,25 +61,12 @@ const config: Configuration = {
         exclude: /node_modules/,
       },
       {
-        test: /\.html$/,
-        loader: 'html-loader',
-        options: {
-          minimize: false,
-          sources: false,
-          preprocessor: (content: string) => {
-            console.log('\nHTML Template Processing:');
-            console.log('='.repeat(40));
-            const result = content.replace(
-              /<%= process.env.(\w+) %>/g,
-              (match, key) => {
-                const value = envVars[key as keyof typeof envVars];
-                console.log(`Replacing ${match} with:`, value);
-                return value || '';
-              }
-            );
-            return result;
-          }
-        }
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader'],
+      },
+      {
+        test: /\.(png|svg|jpg|jpeg|gif)$/i,
+        type: 'asset/resource',
       }
     ],
   },
@@ -96,16 +82,16 @@ const config: Configuration = {
   plugins: [
     new DiagnosticPlugin(),
     new HtmlWebpackPlugin({
-      template: './src/index.html',
+      template: './public/index.html',
       inject: true
     }),
     new DefinePlugin({
-      'globalThis.env': JSON.stringify({
+      'window.env': JSON.stringify({
         NODE_ENV: process.env.NODE_ENV || 'development',
-        REACT_APP_API_URL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
-        REACT_APP_COGNITO_USER_POOL_ID: process.env.REACT_APP_COGNITO_USER_POOL_ID || '',
-        REACT_APP_COGNITO_CLIENT_ID: process.env.REACT_APP_COGNITO_CLIENT_ID || '',
-        REACT_APP_COGNITO_REGION: process.env.REACT_APP_COGNITO_REGION || 'eu-west-2'
+        REACT_APP_API_URL: process.env.REACT_APP_API_URL || 'https://52ke9vmcga.execute-api.eu-west-2.amazonaws.com/dev',
+        REACT_APP_COGNITO_USER_POOL_ID: process.env.REACT_APP_COGNITO_USER_POOL_ID || 'eu-west-2_FwrkPGqg7',
+        REACT_APP_COGNITO_CLIENT_ID: process.env.REACT_APP_COGNITO_CLIENT_ID || '2em7se1kll78d366fb1r9st60c',
+        REACT_APP_AWS_REGION: process.env.REACT_APP_AWS_REGION || 'eu-west-2'
       })
     }),
     {
@@ -127,21 +113,21 @@ const config: Configuration = {
   ],
   devServer: {
     static: {
-      directory: path.join(__dirname, 'dist'),
+      directory: path.join(__dirname, 'public'),
     },
     historyApiFallback: true,
-    compress: true,
+    hot: true,
     port: 3000,
-    setupMiddlewares: (middlewares, devServer) => {
-      if (!devServer) {
-        throw new Error('webpack-dev-server is not defined');
-      }
-      console.log('\nDevServer Middleware Setup:');
-      console.log('='.repeat(40));
-      console.log('globalThis.env:', (global as any).env);
-      return middlewares;
-    }
+    proxy: [{
+      context: ['/api'],
+      target: 'https://52ke9vmcga.execute-api.eu-west-2.amazonaws.com/dev',
+      changeOrigin: true,
+      pathRewrite: { '^/api': '' },
+      secure: false
+    }]
   },
+  mode: 'development',
+  devtool: 'source-map'
 };
 
 export default config; 
