@@ -4,15 +4,19 @@
     "module": "commonjs",
     "lib": ["dom", "es6", "dom.iterable", "scripthost"],
     "outDir": "./dist",
-    "rootDir": ".",
+    "rootDir": "..",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true,
     "jsx": "react",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "baseUrl": "..",
+    "paths": {
+      "@shared/*": ["shared/*"]
+    }
   },
-  "include": ["src/**/*", "webpack.config.ts"],
+  "include": ["src/**/*", "webpack.config.ts", "../shared/**/*"],
   "exclude": ["node_modules", "**/*.spec.ts", "dist"]
 } 
