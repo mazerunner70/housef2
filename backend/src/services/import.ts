@@ -73,6 +73,41 @@ export class ImportService {
   }
 
   /**
+   * Initiate a new import
+   */
+  async initiateImport(userId: string, accountId: string, fileType: string): Promise<{ uploadId: string; uploadUrl: string }> {
+    const uploadId = `${Date.now()}-${Math.random().toString(36).substring(2)}`;
+    const key = `${userId}/${accountId}/pending/${uploadId}/original.${fileType}`;
+
+    const params = {
+      Bucket: BUCKET_NAME,
+      Key: key,
+      ContentType: this.getContentType(fileType),
+      Expires: 300 // URL expires in 5 minutes
+    };
+
+    const uploadUrl = await s3.getSignedUrlPromise('putObject', params);
+
+    // Create import record in DynamoDB
+    const importItem = {
+      PK: `USER#${userId}`,
+      SK: `IMPORT#${uploadId}`,
+      accountId,
+      fileType,
+      uploadTime: new Date().toISOString(),
+      status: 'PENDING',
+      s3Key: key
+    };
+
+    await dynamodb.put({
+      TableName: TABLE_NAME,
+      Item: importItem
+    }).promise();
+
+    return { uploadId, uploadUrl };
+  }
+
+  /**
    * Get all imports for the current user
    */
   async getImports(userId: string): Promise<ImportListItem[]> {
