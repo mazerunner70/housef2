@@ -6,50 +6,16 @@ import { ValidationError } from '../utils/errors';
 import { Lambda } from '../utils/lambda';
 import { Transaction } from '../types/transaction';
 import { config } from '../config';
-import { ImportAnalysis, ImportListItem, ImportConfirmation } from '../../shared/types/import';
+import type { ImportListItem, ImportConfirmation, ImportAnalysis } from '@shared/types/import';
 import { getUserIdFromEvent } from '../utils/auth';
-
-interface ImportAnalysis {
-  fileStats: {
-    transactionCount: number;
-    dateRange: {
-      start: string;
-      end: string;
-    };
-  };
-  overlapStats: {
-    existingTransactions: number;
-    newTransactions: number;
-    potentialDuplicates: number;
-    overlapPeriod: {
-      start: string;
-      end: string;
-    };
-  };
-  sampleTransactions: {
-    new: Transaction[];
-    existing: Transaction[];
-    duplicates: {
-      new: Transaction;
-      existing: Transaction;
-      similarity: number;
-    }[];
-  };
-}
-
-// Define the ExpressionAttributeNames type
-interface ExpressionAttributeNames {
-  '#status': string;
-  '#updatedAt': string;
-  '#analysisData': string;
-  '#processingOptions': string;
-}
 
 const s3 = new S3();
 const dynamodb = new DynamoDB.DocumentClient();
 
 const BUCKET_NAME = process.env.IMPORT_BUCKET_NAME || 'housef2-imports';
 const TABLE_NAME = process.env.IMPORT_TABLE_NAME || 'housef2-imports';
+
+type ExpressionAttributeNames = { [key: string]: string };
 
 /**
  * ImportService  
@@ -70,6 +36,62 @@ export class ImportService {
 
   constructor() {
     this.logger = new Logger('import-service');
+  }
+
+  /**
+   * Generate an S3 key for the import file
+   */
+  private generateS3Key(userId: string, accountId: string, uploadId: string, fileName: string): string {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    
+    return `${userId}/${accountId}/${year}/${month}/original/${uploadId}_${fileName}`;
+  }
+
+  /**
+   * Get file content from S3
+   */
+  private async getFileContent(bucket: string, key: string): Promise<string> {
+    const result = await s3.getObject({
+      Bucket: bucket,
+      Key: key
+    }).promise();
+
+    return result.Body?.toString('utf-8') || '';
+  }
+
+  /**
+   * Get content type for file type
+   */
+  private getContentType(fileType: string): string {
+    switch (fileType.toLowerCase()) {
+      case 'csv':
+        return 'text/csv';
+      case 'ofx':
+        return 'application/x-ofx';
+      case 'qif':
+        return 'application/x-qif';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  /**
+   * Map DynamoDB item to ImportListItem
+   */
+  private mapDynamoItemToImportListItem(item: any): ImportListItem {
+    return {
+      uploadId: item.SK.replace('IMPORT#', ''),
+      fileName: item.fileName,
+      fileType: item.fileType,
+      uploadTime: item.uploadTime,
+      status: item.status,
+      matchedAccountId: item.matchedAccountId,
+      matchedAccountName: item.matchedAccountName,
+      fileStats: item.fileStats,
+      error: item.error
+    };
   }
 
   /**
@@ -191,7 +213,7 @@ export class ImportService {
       UpdateExpression: 'SET #status = :status, matchedAccountId = :accountId',
       ExpressionAttributeNames: {
         '#status': 'status'
-      },
+      } as ExpressionAttributeNames,
       ExpressionAttributeValues: {
         ':status': 'ANALYZING',
         ':accountId': confirmation.accountId
@@ -214,7 +236,7 @@ export class ImportService {
       UpdateExpression: 'SET #status = :status, matchedAccountId = :accountId, userAction = :action',
       ExpressionAttributeNames: {
         '#status': 'status'
-      },
+      } as ExpressionAttributeNames,
       ExpressionAttributeValues: {
         ':status': 'READY',
         ':accountId': action.newAccountId || null,
@@ -259,39 +281,6 @@ export class ImportService {
         SK: `IMPORT#${uploadId}`
       }
     }).promise();
-  }
-
-  /**
-   * Get content type for file type
-   */
-  private getContentType(fileType: string): string {
-    switch (fileType.toLowerCase()) {
-      case 'csv':
-        return 'text/csv';
-      case 'ofx':
-        return 'application/x-ofx';
-      case 'qif':
-        return 'application/x-qif';
-      default:
-        return 'application/octet-stream';
-    }
-  }
-
-  /**
-   * Map DynamoDB item to ImportListItem
-   */
-  private mapDynamoItemToImportListItem(item: any): ImportListItem {
-    return {
-      uploadId: item.SK.replace('IMPORT#', ''),
-      fileName: item.fileName,
-      fileType: item.fileType,
-      uploadTime: item.uploadTime,
-      status: item.status,
-      matchedAccountId: item.matchedAccountId,
-      matchedAccountName: item.matchedAccountName,
-      fileStats: item.fileStats,
-      error: item.error
-    };
   }
 
   async analyzeImportFile(params: {
@@ -655,47 +644,5 @@ export class ImportService {
       status: importRecord.status,
       message: `Import successfully reassigned from account ${currentAccountId} to account ${newAccountId}`
     };
-  }
-
-  /**
-   * Delete an import record and its associated file
-   * @param accountId - The account ID
-   * @param uploadId - The upload ID
-   */
-  async deleteImport(accountId: string, uploadId: string): Promise<void> {
-    // Get the import record to find the S3 key
-    const importRecord = await this.getImportStatus(accountId, uploadId);
-    
-    // Delete the import record from DynamoDB
-    await dynamodb.delete({
-      TableName: TABLE_NAME,
-      Key: {
-        PK: `USER#${accountId}`,
-        SK: `IMPORT#${uploadId}`
-      }
-    }).promise();
-    
-    // Generate the S3 key for the file
-    try {
-      const s3Key = this.generateS3Key(
-        importRecord.userId,
-        accountId,
-        uploadId,
-        importRecord.fileName
-      );
-      
-      // Delete the file from S3
-      await s3.deleteObject({
-        Bucket: BUCKET_NAME,
-        Key: s3Key
-      }).promise();
-      
-      this.logger.info('Import file deleted from S3', { accountId, uploadId, s3Key });
-    } catch (error) {
-      this.logger.warn('Failed to delete import file from S3', { error, accountId, uploadId });
-      // Continue even if S3 deletion fails
-    }
-    
-    this.logger.info('Import deleted', { accountId, uploadId });
   }
 } 
