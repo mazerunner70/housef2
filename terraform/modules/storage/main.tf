@@ -207,25 +207,4 @@ variable "project_name" {
 variable "environment" {
   description = "Environment for resource naming"
   type        = string
-}
-
-# Outputs
-output "transaction_files_bucket" {
-  value = aws_s3_bucket.transaction_files.id
-}
-
-output "web_bucket" {
-  value = aws_s3_bucket.web.id
-}
-
-output "web_bucket_website_endpoint" {
-  value = aws_s3_bucket_website_configuration.web.website_endpoint
-}
-
-output "main_table" {
-  value = aws_dynamodb_table.main.name
-}
-
-output "import_status_table" {
-  value = aws_dynamodb_table.import_status.name
 } 
