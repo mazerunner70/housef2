@@ -1,8 +1,9 @@
 import { APIGatewayProxyHandler, APIGatewayProxyEvent, Context } from 'aws-lambda';
 import { Logger } from '../../utils/logger';
 import { ImportService } from '../../services/import';
-import { validateToken } from '../../utils/auth';
+import { validateToken, getUserIdFromEvent } from '../../utils/auth';
 import { validateImportRequest } from '../../utils/validation';
+import { successResponse, errorResponse } from '../../utils/response';
 
 const logger = new Logger('import-initiate-handler');
 const importService = new ImportService();
@@ -12,30 +13,24 @@ export const handler: APIGatewayProxyHandler = async (
   context: Context
 ) => {
   try {
-    const userId = await validateToken(event.headers.Authorization);
-    const request = JSON.parse(event.body || '{}');
+    const userId = getUserIdFromEvent(event);
+    const body = JSON.parse(event.body || '{}');
+    const { accountId, fileType } = body;
+
+    if (!accountId || !fileType) {
+      return errorResponse('Account ID and file type are required', 400);
+    }
+
+    // Validate file type
+    const allowedTypes = ['csv', 'ofx', 'qif'];
+    if (!allowedTypes.includes(fileType.toLowerCase())) {
+      return errorResponse(`Invalid file type. Allowed types are: ${allowedTypes.join(', ')}`, 400);
+    }
+
+    logger.info('Initiating import', { userId, accountId, fileType });
     
-    // Validate request
-    validateImportRequest(request);
-    
-    const { accountId, fileName, fileType, contentType } = request;
-    
-    logger.info('Initiating import', { userId, accountId, fileName });
-    
-    // Generate upload URL and ID
-    const uploadDetails = await importService.initiateImport({
-      userId,
-      accountId,
-      fileName,
-      fileType,
-      contentType
-    });
-    
-    return {
-      statusCode: 200,
-      body: JSON.stringify(uploadDetails)
-    };
-    
+    const result = await importService.initiateImport(userId, accountId, fileType);
+    return successResponse(result);
   } catch (error: unknown) {
     logger.error('Error initiating import', { error });
     
