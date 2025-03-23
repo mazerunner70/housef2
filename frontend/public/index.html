@@ -6,13 +6,13 @@
     <meta name="theme-color" content="#000000" />
     <meta name="description" content="HouseF2 - Personal Finance Management" />
     <title>HouseF2</title>
-    <!-- Environment variables will be injected by the generate-env.js script -->
+    <!-- Environment variables will be injected by webpack -->
     <script>
-      window.env = {
+      window.env = window.env || {
         REACT_APP_AWS_REGION: "",
-        REACT_APP_COGNITO_USER_POOL_ID: "eu-west-2_FwrkPGqg7",
-        REACT_APP_COGNITO_CLIENT_ID: "2em7se1kll78d366fb1r9st60c",
-        REACT_APP_API_URL: "https://52ke9vmcga.execute-api.eu-west-2.amazonaws.com/dev",
+        REACT_APP_COGNITO_USER_POOL_ID: "",
+        REACT_APP_COGNITO_CLIENT_ID: "",
+        REACT_APP_API_URL: "",
         NODE_ENV: "development"
       };
     </script>

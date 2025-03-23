@@ -1,83 +1,74 @@
 import path from 'path';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
-import { Configuration as WebpackConfiguration, DefinePlugin } from 'webpack';
-import { Configuration as WebpackDevServerConfiguration } from 'webpack-dev-server';
-import dotenv from 'dotenv';
+import Dotenv from 'dotenv-webpack';
+import webpack from 'webpack';
+import 'webpack-dev-server';
+import * as dotenv from 'dotenv';
 
 // Load environment variables from .env file
-dotenv.config();
+const envFile = `.env.${process.env.NODE_ENV || 'development'}`;
+console.log('Loading environment from:', envFile);
+const result = dotenv.config({ path: envFile });
+if (result.error) {
+  console.warn('Error loading .env file:', result.error);
+} else {
+  console.log('Loaded environment variables:', 
+    Object.keys(process.env)
+      .filter(key => key.startsWith('REACT_APP_'))
+      .map(key => key)
+  );
+}
 
+// Diagnostic plugin to log environment variables
 class DiagnosticPlugin {
-  apply(compiler: any) {
+  apply(compiler: webpack.Compiler) {
     compiler.hooks.beforeRun.tap('DiagnosticPlugin', () => {
-      console.log('\n========== DIAGNOSTIC OUTPUT ==========');
-      console.log('Environment variables:');
-      Object.entries(process.env).forEach(([key, value]) => {
-        if (key.startsWith('REACT_APP_')) {
-          console.log(`${key}:`, value);
-        }
+      console.log('\n========== WEBPACK BUILD DIAGNOSTICS ==========');
+      console.log('Current NODE_ENV:', process.env.NODE_ENV);
+      console.log('Environment variables available to webpack:');
+      Object.keys(process.env).filter(key => key.startsWith('REACT_APP_')).forEach(key => {
+        console.log(`${key}:`, process.env[key]);
       });
-      console.log('=====================================\n');
+      console.log('===========================================\n');
     });
 
-    compiler.hooks.compilation.tap('DiagnosticPlugin', (compilation: any) => {
-      console.log('\n========== COMPILATION STARTED ==========');
-      console.log('DefinePlugin variables:');
-      console.log({
-        NODE_ENV: process.env.NODE_ENV || 'development',
-        REACT_APP_API_URL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
-        REACT_APP_COGNITO_USER_POOL_ID: process.env.REACT_APP_COGNITO_USER_POOL_ID || '',
-        REACT_APP_COGNITO_CLIENT_ID: process.env.REACT_APP_COGNITO_CLIENT_ID || '',
-        REACT_APP_COGNITO_REGION: process.env.REACT_APP_COGNITO_REGION || 'eu-west-2'
-      });
-      console.log('======================================\n');
+    compiler.hooks.afterEnvironment.tap('DiagnosticPlugin', () => {
+      console.log('\n========== WEBPACK ENVIRONMENT SETUP ==========');
+      console.log('Trying to load .env file:', `./.env.${process.env.NODE_ENV || 'development'}`);
+      console.log('===========================================\n');
     });
   }
 }
 
-interface Configuration extends WebpackConfiguration {
-  devServer?: WebpackDevServerConfiguration;
-}
-
-const envVars = {
-  NODE_ENV: process.env.NODE_ENV || 'development',
-  REACT_APP_API_URL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
-  REACT_APP_COGNITO_USER_POOL_ID: process.env.REACT_APP_COGNITO_USER_POOL_ID || '',
-  REACT_APP_COGNITO_CLIENT_ID: process.env.REACT_APP_COGNITO_CLIENT_ID || '',
-  REACT_APP_COGNITO_REGION: process.env.REACT_APP_COGNITO_REGION || 'eu-west-2'
-};
-
-console.log('\nProcessed Environment Variables:');
-console.log('='.repeat(40));
-console.log(envVars);
-
-const config: Configuration = {
+const config: webpack.Configuration = {
   entry: './src/index.tsx',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: '[name].[contenthash].js',
+    clean: true,
+    publicPath: '/'
+  },
   module: {
     rules: [
       {
-        test: /\.tsx?$/,
-        use: 'ts-loader',
+        test: /\.(ts|tsx)$/,
         exclude: /node_modules/,
+        use: 'babel-loader'
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader'],
-      },
-      {
-        test: /\.(png|svg|jpg|jpeg|gif)$/i,
-        type: 'asset/resource',
+        use: ['style-loader', 'css-loader']
       }
-    ],
+    ]
   },
   resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
-  },
-  output: {
-    filename: '[name].[contenthash].js',
-    path: path.resolve(__dirname, 'dist'),
-    publicPath: '/',
-    clean: true,
+    extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    alias: {
+      '@shared': path.resolve(__dirname, '../shared')
+    },
+    fallback: {
+      process: require.resolve('process/browser')
+    }
   },
   plugins: [
     new DiagnosticPlugin(),
@@ -85,48 +76,41 @@ const config: Configuration = {
       template: './public/index.html',
       inject: true
     }),
-    new DefinePlugin({
-      'window.env': JSON.stringify({
-        NODE_ENV: process.env.NODE_ENV || 'development',
-        REACT_APP_API_URL: process.env.REACT_APP_API_URL || 'https://52ke9vmcga.execute-api.eu-west-2.amazonaws.com/dev',
-        REACT_APP_COGNITO_USER_POOL_ID: process.env.REACT_APP_COGNITO_USER_POOL_ID || 'eu-west-2_FwrkPGqg7',
-        REACT_APP_COGNITO_CLIENT_ID: process.env.REACT_APP_COGNITO_CLIENT_ID || '2em7se1kll78d366fb1r9st60c',
-        REACT_APP_AWS_REGION: process.env.REACT_APP_AWS_REGION || 'eu-west-2'
-      })
+    new Dotenv({
+      path: `./.env.${process.env.NODE_ENV || 'development'}`,
+      systemvars: true
     }),
-    {
-      apply: (compiler: any) => {
-        compiler.hooks.done.tap('DiagnosticPlugin', (stats: any) => {
-          console.log('\nWebpack Build Complete:');
-          console.log('='.repeat(40));
-          console.log('Environment variables injected into build:');
-          console.log(JSON.stringify({
-            NODE_ENV: process.env.NODE_ENV || 'development',
-            REACT_APP_API_URL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
-            REACT_APP_COGNITO_USER_POOL_ID: process.env.REACT_APP_COGNITO_USER_POOL_ID || '',
-            REACT_APP_COGNITO_CLIENT_ID: process.env.REACT_APP_COGNITO_CLIENT_ID || '',
-            REACT_APP_COGNITO_REGION: process.env.REACT_APP_COGNITO_REGION || 'eu-west-2'
-          }, null, 2));
-        });
-      }
-    }
+    new webpack.DefinePlugin({
+      'window.env.REACT_APP_AWS_REGION': JSON.stringify(process.env.REACT_APP_AWS_REGION),
+      'window.env.REACT_APP_COGNITO_USER_POOL_ID': JSON.stringify(process.env.REACT_APP_COGNITO_USER_POOL_ID),
+      'window.env.REACT_APP_COGNITO_CLIENT_ID': JSON.stringify(process.env.REACT_APP_COGNITO_CLIENT_ID),
+      'window.env.REACT_APP_API_URL': JSON.stringify(process.env.REACT_APP_API_URL),
+      'window.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+    }),
+    new webpack.ProvidePlugin({
+      process: 'process/browser'
+    })
   ],
   devServer: {
-    static: {
-      directory: path.join(__dirname, 'public'),
-    },
     historyApiFallback: true,
-    hot: true,
     port: 3000,
-    proxy: [{
-      context: ['/api'],
-      target: 'https://52ke9vmcga.execute-api.eu-west-2.amazonaws.com/dev',
-      changeOrigin: true,
-      pathRewrite: { '^/api': '' },
-      secure: false
-    }]
+    hot: true,
+    open: true,
+    setupMiddlewares: (middlewares, devServer) => {
+      if (!devServer) {
+        throw new Error('webpack-dev-server is not defined');
+      }
+
+      console.log('\n========== DEV SERVER ENVIRONMENT ==========');
+      console.log('Environment variables available to dev server:');
+      Object.keys(process.env).filter(key => key.startsWith('REACT_APP_')).forEach(key => {
+        console.log(`${key}:`, process.env[key]);
+      });
+      console.log('=========================================\n');
+
+      return middlewares;
+    }
   },
-  mode: 'development',
   devtool: 'source-map'
 };
 
