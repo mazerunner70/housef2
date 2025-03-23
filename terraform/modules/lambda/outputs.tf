@@ -26,6 +26,10 @@ output "import_delete_invoke_arn" {
   value = aws_lambda_function.import_delete.invoke_arn
 }
 
+output "import_get_invoke_arn" {
+  value = aws_lambda_function.get_imports.invoke_arn
+}
+
 output "function_names" {
   value = {
     account_api     = aws_lambda_function.account_api.function_name
@@ -35,5 +39,6 @@ output "function_names" {
     import_processor = aws_lambda_function.import_processor.function_name
     import_reassign = aws_lambda_function.import_reassign.function_name
     import_delete = aws_lambda_function.import_delete.function_name
+    get_imports = aws_lambda_function.get_imports.function_name
   }
 } 

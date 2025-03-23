@@ -248,6 +248,29 @@ resource "aws_lambda_function" "import_delete" {
   ]
 }
 
+resource "aws_lambda_function" "get_imports" {
+  function_name = "${var.project_name}-get-imports"
+  handler       = "lambda/handlers/import/list.handler"
+  runtime       = "nodejs18.x"
+  role          = aws_iam_role.lambda_role.arn
+  filename      = var.lambda_zip_path
+  timeout       = 30
+  memory_size   = 256
+
+  environment {
+    variables = {
+      MAIN_TABLE = var.main_table_name
+      IMPORT_STATUS_TABLE = var.import_status_table_name
+      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
+      STAGE = var.environment
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_logs
+  ]
+}
+
 # CloudWatch Log Groups
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   for_each = toset([
@@ -255,7 +278,8 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
     "/aws/lambda/${var.project_name}-transaction-api",
     "/aws/lambda/${var.project_name}-import-upload",
     "/aws/lambda/${var.project_name}-import-analysis",
-    "/aws/lambda/${var.project_name}-import-processor"
+    "/aws/lambda/${var.project_name}-import-processor",
+    "/aws/lambda/${var.project_name}-get-imports"
   ])
 
   name              = each.value

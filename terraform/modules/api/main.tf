@@ -156,6 +156,27 @@ resource "aws_api_gateway_integration" "delete_import" {
   integration_http_method = "POST"
 }
 
+resource "aws_api_gateway_method" "get_imports" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.imports.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+
+  request_parameters = {
+    "method.request.path.accountId" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "get_imports" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.imports.id
+  http_method = aws_api_gateway_method.get_imports.http_method
+  type        = "AWS_PROXY"
+  uri         = var.import_get_invoke_arn
+  integration_http_method = "POST"
+}
+
 # Deployment
 resource "aws_api_gateway_deployment" "main" {
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -163,6 +184,7 @@ resource "aws_api_gateway_deployment" "main" {
   depends_on = [
     aws_api_gateway_integration.get_accounts,
     aws_api_gateway_integration.get_transactions,
+    aws_api_gateway_integration.get_imports,
     aws_api_gateway_integration.post_import,
     aws_api_gateway_integration.post_reassign,
     aws_api_gateway_integration.delete_import,
@@ -225,6 +247,11 @@ variable "import_reassign_invoke_arn" {
 
 variable "import_delete_invoke_arn" {
   description = "Import Delete Lambda invoke ARN"
+  type        = string
+}
+
+variable "import_get_invoke_arn" {
+  description = "Import Get Lambda invoke ARN"
   type        = string
 }
 
