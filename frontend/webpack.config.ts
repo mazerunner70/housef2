@@ -96,6 +96,24 @@ const config: webpack.Configuration = {
     port: 3000,
     hot: true,
     open: true,
+    proxy: [{
+      context: ['/api'],
+      target: process.env.REACT_APP_API_URL',
+      changeOrigin: true,
+      secure: false,
+      logLevel: 'debug',
+      pathRewrite: {
+        '^/api': '/api'  // Keep the /api prefix in the request
+      },
+      onProxyReq: (proxyReq, req, res) => {
+        console.log('\n========== PROXY REQUEST ==========');
+        console.log('Original URL:', req.url);
+        console.log('Method:', req.method);
+        console.log('Headers:', req.headers);
+        console.log('Target URL:', proxyReq.path);
+        console.log('===================================\n');
+      }
+    }],
     setupMiddlewares: (middlewares, devServer) => {
       if (!devServer) {
         throw new Error('webpack-dev-server is not defined');

@@ -40,18 +40,6 @@ resource "aws_api_gateway_resource" "imports" {
   path_part   = "imports"
 }
 
-resource "aws_api_gateway_resource" "unassigned_imports" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_rest_api.main.root_resource_id
-  path_part   = "imports"
-}
-
-resource "aws_api_gateway_resource" "unassigned" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.unassigned_imports.id
-  path_part   = "unassigned"
-}
-
 resource "aws_api_gateway_resource" "import" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   parent_id   = aws_api_gateway_resource.imports.id
@@ -68,6 +56,12 @@ resource "aws_api_gateway_resource" "paginated_imports" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   parent_id   = aws_api_gateway_rest_api.main.root_resource_id
   path_part   = "imports-paginated"
+}
+
+resource "aws_api_gateway_resource" "unassigned_imports" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_rest_api.main.root_resource_id
+  path_part   = "imports"
 }
 
 # Methods
@@ -196,23 +190,6 @@ resource "aws_api_gateway_integration" "get_imports" {
   integration_http_method = "POST"
 }
 
-resource "aws_api_gateway_method" "list_unassigned_imports" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.unassigned.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-}
-
-resource "aws_api_gateway_integration" "list_unassigned_imports" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.unassigned.id
-  http_method = aws_api_gateway_method.list_unassigned_imports.http_method
-  type        = "AWS_PROXY"
-  uri         = var.list_unassigned_imports_invoke_arn
-  integration_http_method = "POST"
-}
-
 resource "aws_api_gateway_method" "list_paginated_imports" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
   resource_id   = aws_api_gateway_resource.paginated_imports.id
@@ -235,6 +212,23 @@ resource "aws_api_gateway_integration" "list_paginated_imports" {
   integration_http_method = "POST"
 }
 
+resource "aws_api_gateway_method" "get_root_imports" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.unassigned_imports.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "get_root_imports" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.unassigned_imports.id
+  http_method = aws_api_gateway_method.get_root_imports.http_method
+  type        = "AWS_PROXY"
+  uri         = var.get_imports_invoke_arn
+  integration_http_method = "POST"
+}
+
 # Deployment
 resource "aws_api_gateway_deployment" "main" {
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -243,15 +237,14 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.get_accounts,
     aws_api_gateway_integration.get_transactions,
     aws_api_gateway_integration.get_imports,
+    aws_api_gateway_integration.get_root_imports,
     aws_api_gateway_integration.post_import,
     aws_api_gateway_integration.post_reassign,
     aws_api_gateway_integration.delete_import,
-    aws_api_gateway_integration.list_unassigned_imports,
     aws_api_gateway_integration.list_paginated_imports,
     aws_api_gateway_integration.options_accounts,
     aws_api_gateway_integration.options_account,
     aws_api_gateway_integration.options_imports,
-    aws_api_gateway_integration.options_unassigned_imports,
     aws_api_gateway_integration.options_paginated_imports
   ]
 
@@ -312,13 +305,13 @@ variable "import_delete_invoke_arn" {
   type        = string
 }
 
-variable "list_unassigned_imports_invoke_arn" {
-  description = "List Unassigned Imports Lambda invoke ARN"
+variable "list_paginated_imports_invoke_arn" {
+  description = "List Paginated Imports Lambda invoke ARN"
   type        = string
 }
 
-variable "list_paginated_imports_invoke_arn" {
-  description = "List Paginated Imports Lambda invoke ARN"
+variable "get_imports_invoke_arn" {
+  description = "Get Imports Lambda invoke ARN"
   type        = string
 }
 
