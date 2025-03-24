@@ -92,7 +92,8 @@ module "api" {
   import_upload_invoke_arn = module.lambda.import_upload_invoke_arn
   import_reassign_invoke_arn = module.lambda.import_reassign_invoke_arn
   import_delete_invoke_arn = module.lambda.import_delete_invoke_arn
-  import_get_invoke_arn = module.lambda.import_get_invoke_arn
+  list_unassigned_imports_invoke_arn = module.lambda.list_unassigned_imports_invoke_arn
+  list_paginated_imports_invoke_arn = module.lambda.list_paginated_imports_invoke_arn
 }
 
 # CDN Module
