@@ -4,6 +4,7 @@ import Dotenv from 'dotenv-webpack';
 import webpack from 'webpack';
 import 'webpack-dev-server';
 import * as dotenv from 'dotenv';
+import { Configuration as WebpackDevServerConfiguration } from 'webpack-dev-server';
 
 // Load environment variables from .env file
 const envFile = `.env.${process.env.NODE_ENV || 'development'}`;
@@ -40,7 +41,7 @@ class DiagnosticPlugin {
   }
 }
 
-const config: webpack.Configuration = {
+const config: webpack.Configuration & { devServer?: WebpackDevServerConfiguration } = {
   entry: './src/index.tsx',
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -84,6 +85,7 @@ const config: webpack.Configuration = {
       'window.env.REACT_APP_AWS_REGION': JSON.stringify(process.env.REACT_APP_AWS_REGION),
       'window.env.REACT_APP_COGNITO_USER_POOL_ID': JSON.stringify(process.env.REACT_APP_COGNITO_USER_POOL_ID),
       'window.env.REACT_APP_COGNITO_CLIENT_ID': JSON.stringify(process.env.REACT_APP_COGNITO_CLIENT_ID),
+      'window.env.REACT_APP_COGNITO_IDENTITY_POOL_ID': JSON.stringify(process.env.REACT_APP_COGNITO_IDENTITY_POOL_ID),
       'window.env.REACT_APP_API_URL': JSON.stringify(process.env.REACT_APP_API_URL),
       'window.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
     }),
@@ -98,7 +100,7 @@ const config: webpack.Configuration = {
     open: true,
     proxy: [{
       context: ['/api'],
-      target: process.env.REACT_APP_API_URL',
+      target: process.env.REACT_APP_API_URL,
       changeOrigin: true,
       secure: false,
       logLevel: 'debug',

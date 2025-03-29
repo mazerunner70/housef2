@@ -1,9 +1,9 @@
 # Import Lambda functions
 resource "aws_lambda_function" "get_imports" {
   filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-get-imports"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "handlers/import.getImports"
+  function_name    = "${var.project_name}-${var.environment}-get-imports"
+  role            = var.lambda_role_arn
+  handler         = "import.getImports"
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256
@@ -11,17 +11,19 @@ resource "aws_lambda_function" "get_imports" {
 
   environment {
     variables = {
-      IMPORT_BUCKET_NAME = var.transaction_files_bucket_name
-      IMPORT_TABLE_NAME  = var.import_status_table_name
+      IMPORT_BUCKET_NAME = var.import_bucket_name
+      IMPORT_TABLE_NAME  = var.import_table_name
     }
   }
+
+  depends_on = [var.lambda_build]
 }
 
 resource "aws_lambda_function" "get_import_analysis" {
   filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-get-import-analysis"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "handlers/import.getImportAnalysis"
+  function_name    = "${var.project_name}-${var.environment}-get-import-analysis"
+  role            = var.lambda_role_arn
+  handler         = "import.getImportAnalysis"
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256
@@ -29,17 +31,19 @@ resource "aws_lambda_function" "get_import_analysis" {
 
   environment {
     variables = {
-      IMPORT_BUCKET_NAME = var.transaction_files_bucket_name
-      IMPORT_TABLE_NAME  = var.import_status_table_name
+      IMPORT_BUCKET_NAME = var.import_bucket_name
+      IMPORT_TABLE_NAME  = var.import_table_name
     }
   }
+
+  depends_on = [var.lambda_build]
 }
 
 resource "aws_lambda_function" "get_upload_url" {
   filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-get-upload-url"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "handlers/import.getUploadUrl"
+  function_name    = "${var.project_name}-${var.environment}-get-upload-url"
+  role            = var.lambda_role_arn
+  handler         = "import.getUploadUrl"
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256
@@ -47,17 +51,19 @@ resource "aws_lambda_function" "get_upload_url" {
 
   environment {
     variables = {
-      IMPORT_BUCKET_NAME = var.transaction_files_bucket_name
-      IMPORT_TABLE_NAME  = var.import_status_table_name
+      IMPORT_BUCKET_NAME = var.import_bucket_name
+      IMPORT_TABLE_NAME  = var.import_table_name
     }
   }
+
+  depends_on = [var.lambda_build]
 }
 
 resource "aws_lambda_function" "confirm_import" {
   filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-confirm-import"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "handlers/import.confirmImport"
+  function_name    = "${var.project_name}-${var.environment}-confirm-import"
+  role            = var.lambda_role_arn
+  handler         = "import.confirmImport"
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256
@@ -65,17 +71,19 @@ resource "aws_lambda_function" "confirm_import" {
 
   environment {
     variables = {
-      IMPORT_BUCKET_NAME = var.transaction_files_bucket_name
-      IMPORT_TABLE_NAME  = var.import_status_table_name
+      IMPORT_BUCKET_NAME = var.import_bucket_name
+      IMPORT_TABLE_NAME  = var.import_table_name
     }
   }
+
+  depends_on = [var.lambda_build]
 }
 
 resource "aws_lambda_function" "handle_wrong_account" {
   filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-handle-wrong-account"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "handlers/import.handleWrongAccount"
+  function_name    = "${var.project_name}-${var.environment}-handle-wrong-account"
+  role            = var.lambda_role_arn
+  handler         = "import.handleWrongAccount"
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256
@@ -83,17 +91,19 @@ resource "aws_lambda_function" "handle_wrong_account" {
 
   environment {
     variables = {
-      IMPORT_BUCKET_NAME = var.transaction_files_bucket_name
-      IMPORT_TABLE_NAME  = var.import_status_table_name
+      IMPORT_BUCKET_NAME = var.import_bucket_name
+      IMPORT_TABLE_NAME  = var.import_table_name
     }
   }
+
+  depends_on = [var.lambda_build]
 }
 
 resource "aws_lambda_function" "delete_import" {
   filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-delete-import"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "handlers/import.deleteImport"
+  function_name    = "${var.project_name}-${var.environment}-delete-import"
+  role            = var.lambda_role_arn
+  handler         = "import.deleteImport"
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256
@@ -101,10 +111,12 @@ resource "aws_lambda_function" "delete_import" {
 
   environment {
     variables = {
-      IMPORT_BUCKET_NAME = var.transaction_files_bucket_name
-      IMPORT_TABLE_NAME  = var.import_status_table_name
+      IMPORT_BUCKET_NAME = var.import_bucket_name
+      IMPORT_TABLE_NAME  = var.import_table_name
     }
   }
+
+  depends_on = [var.lambda_build]
 }
 
 # Outputs for import functions

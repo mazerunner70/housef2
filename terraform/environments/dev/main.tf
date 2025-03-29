@@ -67,16 +67,12 @@ module "auth" {
 module "lambda" {
   source = "../../modules/lambda"
 
-  project_name = "${var.project_name}-dev"
+  project_name = var.project_name
   environment = local.environment
-  lambda_zip_path = "../../../backend/lambda.zip"
+  lambda_zip_path = "../../../backend/dist/lambda.zip"
 
-  main_table_name = module.storage.main_table
-  main_table_arn = "arn:aws:dynamodb:eu-west-2:${data.aws_caller_identity.current.account_id}:table/${module.storage.main_table}"
-  import_status_table_name = module.storage.import_status_table
-  import_status_table_arn = "arn:aws:dynamodb:eu-west-2:${data.aws_caller_identity.current.account_id}:table/${module.storage.import_status_table}"
-  transaction_files_bucket_name = module.storage.transaction_files_bucket
-  transaction_files_bucket_arn = "arn:aws:s3:::${module.storage.transaction_files_bucket}"
+  import_table_name = module.storage.import_status_table
+  import_bucket_name = module.storage.transaction_files_bucket
 }
 
 # API Module
@@ -92,8 +88,6 @@ module "api" {
   import_upload_invoke_arn = module.lambda.import_upload_invoke_arn
   import_reassign_invoke_arn = module.lambda.import_reassign_invoke_arn
   import_delete_invoke_arn = module.lambda.import_delete_invoke_arn
-  list_paginated_imports_invoke_arn = module.lambda.list_paginated_imports_invoke_arn
-  get_imports_invoke_arn = module.lambda.import_get_invoke_arn
 }
 
 # CDN Module
@@ -123,12 +117,22 @@ module "web" {
   aws_region = var.aws_region
   cognito_user_pool_id = module.auth.user_pool_id
   cognito_client_id = module.auth.user_pool_client_id
-  api_url = module.api.api_url
+  cognito_identity_pool_id = module.auth.identity_pool_id
+  cloudfront_domain = module.cdn.cloudfront_domain
 }
 
 # Lambda permissions for API Gateway
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = module.lambda.function_names
+  for_each = {
+    account_api     = module.lambda.function_names["account_api"]
+    transaction_api = module.lambda.function_names["transaction_api"]
+    import_upload   = module.lambda.function_names["import_upload"]
+    import_analysis = module.lambda.function_names["import_analysis"]
+    import_processor = module.lambda.function_names["import_processor"]
+    import_reassign = module.lambda.function_names["import_reassign"]
+    import_delete = module.lambda.function_names["import_delete"]
+    get_imports = module.lambda.function_names["get_imports"]
+  }
 
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
@@ -174,4 +178,8 @@ output "cognito_user_pool_id" {
 
 output "cognito_client_id" {
   value = module.auth.user_pool_client_id
+}
+
+output "cognito_identity_pool_id" {
+  value = module.auth.identity_pool_id
 } 

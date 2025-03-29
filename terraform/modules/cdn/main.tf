@@ -26,14 +26,11 @@ resource "aws_cloudfront_distribution" "consolidated" {
 
   # S3 Origin for frontend
   origin {
-    domain_name = var.s3_website_endpoint
+    domain_name = "${var.web_bucket}.s3.${var.aws_region}.amazonaws.com"
     origin_id   = "S3-${var.web_bucket}"
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+    s3_origin_config {
+      origin_access_identity = aws_cloudfront_origin_access_identity.web.cloudfront_access_identity_path
     }
   }
 

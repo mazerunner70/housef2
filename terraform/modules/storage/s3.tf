@@ -32,6 +32,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "imports" {
     id     = "delete_old_imports"
     status = "Enabled"
 
+    filter {
+      prefix = ""
+    }
+
     expiration {
       days = 30
     }

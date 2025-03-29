@@ -1,24 +1,36 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 # Build process
 resource "null_resource" "lambda_build" {
   triggers = {
-    source_code = sha256(join("", [for f in fileset("${path.module}/../../../backend/src", "**/*"): filesha256("${path.module}/../../../backend/src/${f}")]))
+    source_code = filebase64sha256("${path.module}/../../../backend/src/handlers/import.ts")
   }
 
   provisioner "local-exec" {
     working_dir = "${path.module}/../../../backend"
     command     = <<EOT
+      rm -rf dist
       npm install
       npm run build
-      rm -f lambda.zip
-      cd dist && zip -r ../lambda.zip .
+      rm -f dist/lambda.zip
+      cd dist && zip -r lambda.zip . -x "*.map" "*.test.js" "*.test.js.map"
     EOT
   }
 }
 
 # IAM role for Lambda functions
 resource "aws_iam_role" "lambda_role" {
-  name = "${var.project_name}-lambda-role"
-  depends_on = [null_resource.lambda_build]  # Ensure build completes before creating Lambda
+  name = "${var.project_name}-${var.environment}-lambda-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -42,7 +54,7 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
 
 # DynamoDB access policy
 resource "aws_iam_role_policy" "lambda_dynamodb" {
-  name = "${var.project_name}-lambda-dynamodb"
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb"
   role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
@@ -59,8 +71,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
           "dynamodb:Scan"
         ]
         Resource = [
-          var.main_table_arn,
-          var.import_status_table_arn
+          "arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${var.import_table_name}"
         ]
       }
     ]
@@ -69,7 +80,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
 
 # S3 access policy
 resource "aws_iam_role_policy" "lambda_s3" {
-  name = "${var.project_name}-lambda-s3"
+  name = "${var.project_name}-${var.environment}-lambda-s3"
   role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
@@ -84,8 +95,8 @@ resource "aws_iam_role_policy" "lambda_s3" {
           "s3:ListBucket"
         ]
         Resource = [
-          var.transaction_files_bucket_arn,
-          "${var.transaction_files_bucket_arn}/*"
+          "arn:aws:s3:::${var.import_bucket_name}",
+          "arn:aws:s3:::${var.import_bucket_name}/*"
         ]
       }
     ]
@@ -99,288 +110,79 @@ locals {
 # Lambda functions
 resource "aws_lambda_function" "account_api" {
   filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-account-api"
+  function_name    = "${var.project_name}-${var.environment}-account-api"
   role            = aws_iam_role.lambda_role.arn
-  handler         = "index.handler"
+  handler         = "account.getAccount"
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256
-  depends_on      = [null_resource.lambda_build]  # Ensure build completes before creating Lambda
+  source_code_hash = local.source_code_hash
 
   environment {
     variables = {
-      MAIN_TABLE = var.main_table_name
-      ENVIRONMENT = var.environment
+      MAIN_TABLE_NAME = var.import_table_name
     }
   }
 
-  source_code_hash = local.source_code_hash
+  depends_on = [null_resource.lambda_build]
 }
 
 resource "aws_lambda_function" "transaction_api" {
   filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-transaction-api"
+  function_name    = "${var.project_name}-${var.environment}-transaction-api"
   role            = aws_iam_role.lambda_role.arn
-  handler         = "index.handler"
+  handler         = "transaction.getTransactions"
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256
-  depends_on      = [null_resource.lambda_build]  # Ensure build completes before creating Lambda
-
-  environment {
-    variables = {
-      MAIN_TABLE = var.main_table_name
-      ENVIRONMENT = var.environment
-    }
-  }
-
   source_code_hash = local.source_code_hash
-}
-
-resource "aws_lambda_function" "import_upload" {
-  filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-import-upload"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "index.handler"
-  runtime         = "nodejs18.x"
-  timeout         = 30
-  memory_size     = 256
-  depends_on      = [null_resource.lambda_build]  # Ensure build completes before creating Lambda
 
   environment {
     variables = {
-      IMPORT_STATUS_TABLE = var.import_status_table_name
-      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
-      ENVIRONMENT = var.environment
+      MAIN_TABLE_NAME = var.import_table_name
     }
   }
 
-  source_code_hash = local.source_code_hash
+  depends_on = [null_resource.lambda_build]
 }
 
-resource "aws_lambda_function" "import_analysis" {
-  filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-import-analysis"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "index.handler"
-  runtime         = "nodejs18.x"
-  timeout         = 60
-  memory_size     = 512
-  depends_on      = [null_resource.lambda_build]  # Ensure build completes before creating Lambda
+# Import functions module
+module "import_functions" {
+  source = "./functions"
 
-  environment {
-    variables = {
-      MAIN_TABLE = var.main_table_name
-      IMPORT_STATUS_TABLE = var.import_status_table_name
-      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
-      ENVIRONMENT = var.environment
-    }
-  }
-
-  source_code_hash = local.source_code_hash
-}
-
-resource "aws_lambda_function" "import_processor" {
-  filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-import-processor"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "index.handler"
-  runtime         = "nodejs18.x"
-  timeout         = 300
-  memory_size     = 1024
-  depends_on      = [null_resource.lambda_build]  # Ensure build completes before creating Lambda
-
-  environment {
-    variables = {
-      MAIN_TABLE = var.main_table_name
-      IMPORT_STATUS_TABLE = var.import_status_table_name
-      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
-      ENVIRONMENT = var.environment
-    }
-  }
-
-  source_code_hash = local.source_code_hash
-}
-
-resource "aws_lambda_function" "import_reassign" {
-  function_name = "${var.project_name}-import-reassign"
-  handler       = "lambda/handlers/import/reassign.handler"
-  runtime       = "nodejs18.x"
-  role          = aws_iam_role.lambda_role.arn
-  filename      = var.lambda_zip_path
-  timeout       = 30
-  memory_size   = 256
-
-  environment {
-    variables = {
-      MAIN_TABLE = var.main_table_name
-      IMPORT_STATUS_TABLE = var.import_status_table_name
-      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
-      STAGE = var.environment
-    }
-  }
-
-  depends_on = [
-    aws_cloudwatch_log_group.lambda_logs
-  ]
-}
-
-resource "aws_lambda_function" "import_delete" {
-  function_name = "${var.project_name}-import-delete"
-  handler       = "lambda/handlers/import/delete.handler"
-  runtime       = "nodejs18.x"
-  role          = aws_iam_role.lambda_role.arn
-  filename      = var.lambda_zip_path
-  timeout       = 30
-  memory_size   = 256
-
-  environment {
-    variables = {
-      MAIN_TABLE = var.main_table_name
-      IMPORT_STATUS_TABLE = var.import_status_table_name
-      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
-      STAGE = var.environment
-    }
-  }
-
-  depends_on = [
-    aws_cloudwatch_log_group.lambda_logs
-  ]
-}
-
-resource "aws_lambda_function" "get_imports" {
-  function_name = "${var.project_name}-get-imports"
-  handler       = "lambda/handlers/import/list.handler"
-  runtime       = "nodejs18.x"
-  role          = aws_iam_role.lambda_role.arn
-  filename      = var.lambda_zip_path
-  timeout       = 30
-  memory_size   = 256
-
-  environment {
-    variables = {
-      MAIN_TABLE = var.main_table_name
-      IMPORT_STATUS_TABLE = var.import_status_table_name
-      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
-      STAGE = var.environment
-    }
-  }
-
-  depends_on = [
-    aws_cloudwatch_log_group.lambda_logs
-  ]
-}
-
-resource "aws_lambda_function" "list_unassigned_imports" {
-  function_name = "${var.project_name}-list-unassigned-imports"
-  handler       = "lambda/handlers/import/listUnassigned.handler"
-  runtime       = "nodejs18.x"
-  role          = aws_iam_role.lambda_role.arn
-  filename      = var.lambda_zip_path
-  timeout       = 30
-  memory_size   = 256
-
-  environment {
-    variables = {
-      MAIN_TABLE = var.main_table_name
-      IMPORT_STATUS_TABLE = var.import_status_table_name
-      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
-      STAGE = var.environment
-    }
-  }
-
-  depends_on = [
-    aws_cloudwatch_log_group.lambda_logs
-  ]
-}
-
-resource "aws_lambda_function" "list_paginated_imports" {
-  function_name = "${var.project_name}-list-paginated-imports"
-  handler       = "lambda/handlers/import/listPaginated.handler"
-  runtime       = "nodejs18.x"
-  role          = aws_iam_role.lambda_role.arn
-  filename      = var.lambda_zip_path
-  timeout       = 30
-  memory_size   = 256
-
-  environment {
-    variables = {
-      MAIN_TABLE = var.main_table_name
-      IMPORT_STATUS_TABLE = var.import_status_table_name
-      TRANSACTION_FILES_BUCKET = var.transaction_files_bucket_name
-      STAGE = var.environment
-    }
-  }
-
-  depends_on = [
-    aws_cloudwatch_log_group.lambda_logs
-  ]
+  project_name = var.project_name
+  environment = var.environment
+  lambda_zip_path = var.lambda_zip_path
+  lambda_role_arn = aws_iam_role.lambda_role.arn
+  lambda_build = null_resource.lambda_build
+  import_bucket_name = var.import_bucket_name
+  import_table_name = var.import_table_name
 }
 
 # CloudWatch Log Groups
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   for_each = toset([
-    "/aws/lambda/${var.project_name}-account-api",
-    "/aws/lambda/${var.project_name}-transaction-api",
-    "/aws/lambda/${var.project_name}-import-upload",
-    "/aws/lambda/${var.project_name}-import-analysis",
-    "/aws/lambda/${var.project_name}-import-processor",
-    "/aws/lambda/${var.project_name}-get-imports",
-    "/aws/lambda/${var.project_name}-list-unassigned-imports",
-    "/aws/lambda/${var.project_name}-list-paginated-imports"
+    "housef2-dev-account-api",
+    "housef2-dev-transaction-api",
+    "housef2-dev-get-upload-url",
+    "housef2-dev-get-imports",
+    "housef2-dev-get-import-analysis",
+    "housef2-dev-confirm-import",
+    "housef2-dev-handle-wrong-account",
+    "housef2-dev-delete-import"
   ])
 
-  name              = each.value
-  retention_in_days = 30
-}
-
-# Variables
-variable "project_name" {
-  description = "Project name for resource naming"
-  type        = string
-}
-
-variable "environment" {
-  description = "Environment name"
-  type        = string
-}
-
-variable "lambda_zip_path" {
-  description = "Path to Lambda deployment package"
-  type        = string
-}
-
-variable "main_table_name" {
-  description = "DynamoDB main table name"
-  type        = string
-}
-
-variable "main_table_arn" {
-  description = "DynamoDB main table ARN"
-  type        = string
-}
-
-variable "import_status_table_name" {
-  description = "DynamoDB import status table name"
-  type        = string
-}
-
-variable "import_status_table_arn" {
-  description = "DynamoDB import status table ARN"
-  type        = string
-}
-
-variable "transaction_files_bucket_name" {
-  description = "S3 bucket name for transaction files"
-  type        = string
-}
-
-variable "transaction_files_bucket_arn" {
-  description = "S3 bucket ARN for transaction files"
-  type        = string
+  name              = "/aws/lambda/${each.key}"
+  retention_in_days = 14
 }
 
 # Outputs
 output "lambda_role_arn" {
-  value = aws_iam_role.lambda_role.arn
+  description = "ARN of the Lambda IAM role"
+  value       = aws_iam_role.lambda_role.arn
+}
+
+output "lambda_build" {
+  description = "The lambda_build resource"
+  value       = null_resource.lambda_build
 } 

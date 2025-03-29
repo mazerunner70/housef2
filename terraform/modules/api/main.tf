@@ -58,12 +58,6 @@ resource "aws_api_gateway_resource" "paginated_imports" {
   path_part   = "imports-paginated"
 }
 
-resource "aws_api_gateway_resource" "unassigned_imports" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_rest_api.main.root_resource_id
-  path_part   = "imports"
-}
-
 # Methods
 resource "aws_api_gateway_method" "get_accounts" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
@@ -132,7 +126,7 @@ resource "aws_api_gateway_method" "post_reassign" {
   authorizer_id = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
-    "method.request.path.accountId" = true,
+    "method.request.path.accountId" = true
     "method.request.path.uploadId" = true
   }
 }
@@ -154,7 +148,7 @@ resource "aws_api_gateway_method" "delete_import" {
   authorizer_id = aws_api_gateway_authorizer.cognito.id
 
   request_parameters = {
-    "method.request.path.accountId" = true,
+    "method.request.path.accountId" = true
     "method.request.path.uploadId" = true
   }
 }
@@ -168,67 +162,6 @@ resource "aws_api_gateway_integration" "delete_import" {
   integration_http_method = "POST"
 }
 
-resource "aws_api_gateway_method" "get_imports" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.imports.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-
-  request_parameters = {
-    "method.request.querystring.limit" = false
-    "method.request.querystring.nextToken" = false
-  }
-}
-
-resource "aws_api_gateway_integration" "get_imports" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.imports.id
-  http_method = aws_api_gateway_method.get_imports.http_method
-  type        = "AWS_PROXY"
-  uri         = var.list_paginated_imports_invoke_arn
-  integration_http_method = "POST"
-}
-
-resource "aws_api_gateway_method" "list_paginated_imports" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.paginated_imports.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-
-  request_parameters = {
-    "method.request.querystring.limit" = false
-    "method.request.querystring.nextToken" = false
-  }
-}
-
-resource "aws_api_gateway_integration" "list_paginated_imports" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.paginated_imports.id
-  http_method = aws_api_gateway_method.list_paginated_imports.http_method
-  type        = "AWS_PROXY"
-  uri         = var.list_paginated_imports_invoke_arn
-  integration_http_method = "POST"
-}
-
-resource "aws_api_gateway_method" "get_root_imports" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.unassigned_imports.id
-  http_method   = "GET"
-  authorization = "COGNITO_USER_POOLS"
-  authorizer_id = aws_api_gateway_authorizer.cognito.id
-}
-
-resource "aws_api_gateway_integration" "get_root_imports" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.unassigned_imports.id
-  http_method = aws_api_gateway_method.get_root_imports.http_method
-  type        = "AWS_PROXY"
-  uri         = var.get_imports_invoke_arn
-  integration_http_method = "POST"
-}
-
 # Deployment
 resource "aws_api_gateway_deployment" "main" {
   rest_api_id = aws_api_gateway_rest_api.main.id
@@ -236,12 +169,9 @@ resource "aws_api_gateway_deployment" "main" {
   depends_on = [
     aws_api_gateway_integration.get_accounts,
     aws_api_gateway_integration.get_transactions,
-    aws_api_gateway_integration.get_imports,
-    aws_api_gateway_integration.get_root_imports,
     aws_api_gateway_integration.post_import,
     aws_api_gateway_integration.post_reassign,
     aws_api_gateway_integration.delete_import,
-    aws_api_gateway_integration.list_paginated_imports,
     aws_api_gateway_integration.options_accounts,
     aws_api_gateway_integration.options_account,
     aws_api_gateway_integration.options_imports,
@@ -302,16 +232,6 @@ variable "import_reassign_invoke_arn" {
 
 variable "import_delete_invoke_arn" {
   description = "Import Delete Lambda invoke ARN"
-  type        = string
-}
-
-variable "list_paginated_imports_invoke_arn" {
-  description = "List Paginated Imports Lambda invoke ARN"
-  type        = string
-}
-
-variable "get_imports_invoke_arn" {
-  description = "Get Imports Lambda invoke ARN"
   type        = string
 }
 

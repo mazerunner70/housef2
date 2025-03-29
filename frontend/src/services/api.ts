@@ -1,83 +1,74 @@
-import { authService } from './auth';
-import { SignatureV4 } from '@aws-sdk/signature-v4';
-import { Sha256 } from '@aws-crypto/sha256-js';
+import { CognitoUser, AuthenticationDetails, CognitoUserPool } from 'amazon-cognito-identity-js';
 
 export class API {
   private baseUrl: string;
-  private region: string;
+  private userPool: CognitoUserPool;
+  private cognitoUser: CognitoUser | null = null;
 
-  constructor(baseUrl?: string) {
-    this.region = window.env?.REACT_APP_AWS_REGION || 'eu-west-2';
-    
-    // Always use the proxy
-    this.baseUrl = '/api';
-    console.log('Using webpack dev server proxy at /api');
+  constructor() {
+    // Use the API URL from environment variables and ensure it ends with /api
+    const apiUrl = process.env.REACT_APP_API_URL || '';
+    this.baseUrl = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+    console.log('Using API URL:', this.baseUrl);
+
+    // Initialize Cognito User Pool
+    this.userPool = new CognitoUserPool({
+      UserPoolId: process.env.REACT_APP_COGNITO_USER_POOL_ID || '',
+      ClientId: process.env.REACT_APP_COGNITO_CLIENT_ID || ''
+    });
+
+    // Try to get current user
+    this.cognitoUser = this.userPool.getCurrentUser();
+  }
+
+  /**
+   * Get authentication token from current session
+   */
+  private async getAuthToken(): Promise<string | null> {
+    if (!this.cognitoUser) {
+      console.warn('No Cognito user found');
+      return null;
+    }
+
+    return new Promise((resolve, reject) => {
+      this.cognitoUser?.getSession((err: any, session: any) => {
+        if (err) {
+          console.error('Error getting session:', err);
+          reject(err);
+          return;
+        }
+
+        if (!session.isValid()) {
+          console.error('Session is not valid');
+          reject(new Error('Invalid session'));
+          return;
+        }
+
+        const token = session.getIdToken().getJwtToken();
+        resolve(token);
+      });
+    });
   }
 
   /**
    * Get authentication headers for API requests
    */
   private async getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+
     try {
-      // Basic headers that are always included
-      const baseHeaders = {
-        'Content-Type': 'application/json',
-      };
-
-      // Get current user from auth service
-      const currentUser = await authService.getCurrentUser();
-      if (!currentUser) {
-        console.warn('No current user found');
-        return baseHeaders;
+      const token = await this.getAuthToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
       }
-
-      // Get current user session
-      const cognitoUser = window.userPool?.getCurrentUser();
-      if (!cognitoUser) {
-        console.warn('No Cognito user found in session');
-        return baseHeaders;
-      }
-
-      return new Promise((resolve, reject) => {
-        cognitoUser.getSession(async (err: any, session: any) => {
-          if (err) {
-            console.error('Error getting session:', err);
-            resolve(baseHeaders);
-            return;
-          }
-
-          if (!session?.isValid()) {
-            console.warn('Session is not valid');
-            resolve(baseHeaders);
-            return;
-          }
-
-          try {
-            // Get the ID token
-            const idToken = session.getIdToken().getJwtToken();
-            
-            // Use ID token for authorization
-            const headers = {
-              ...baseHeaders,
-              'Authorization': `Bearer ${idToken}`
-            };
-
-            console.log('Request headers:', {
-              ...headers,
-              'Authorization': headers.Authorization ? 'Bearer [token]' : 'none'
-            });
-
-            resolve(headers);
-          } catch (error) {
-            console.error('Error getting ID token:', error);
-            resolve(baseHeaders);
-          }
-        });
-      });
     } catch (error) {
-      console.error('Error in getAuthHeaders:', error);
-      return { 'Content-Type': 'application/json' };
+      console.error('Error getting auth headers:', error);
     }
+
+    return headers;
   }
 
   /**
@@ -90,18 +81,19 @@ export class API {
       const cleanPath = path.startsWith('/') ? path.substring(1) : path;
       const url = `${this.baseUrl}/${cleanPath}`;
       
-      console.log(`Making GET request to: ${url}`);
+      console.log('Making GET request to:', url);
       const headers = await this.getAuthHeaders();
-      console.log('Headers for request:', headers);
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
+      console.log('Request headers:', {
+        ...headers,
+        'Authorization': headers.Authorization ? '[REDACTED]' : undefined
       });
 
-      // Log response status
-      console.log(`Response status: ${response.status} for ${url}`);
-      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers
+      });
+
       if (!response.ok) {
         if (response.status === 403) {
           console.error('Authentication error (403 Forbidden). Please check authentication setup.');
@@ -202,7 +194,7 @@ export class API {
       
       const response = await fetch(url, {
         method: 'DELETE',
-        headers,
+        headers
       });
 
       if (!response.ok) {

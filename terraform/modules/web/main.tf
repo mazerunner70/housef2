@@ -19,7 +19,8 @@ resource "local_file" "frontend_env" {
     REACT_APP_AWS_REGION=${var.aws_region}
     REACT_APP_COGNITO_USER_POOL_ID=${var.cognito_user_pool_id}
     REACT_APP_COGNITO_CLIENT_ID=${var.cognito_client_id}
-    REACT_APP_API_URL=${var.api_url}
+    REACT_APP_COGNITO_IDENTITY_POOL_ID=${var.cognito_identity_pool_id}
+    REACT_APP_API_URL=https://${var.cloudfront_domain}
     # Note: The frontend code will add the /api prefix to all API requests
   EOT
 
@@ -56,18 +57,36 @@ resource "null_resource" "frontend_deploy" {
         --exclude "*.xml" \
         --include "static/**/*"
 
-      # Upload HTML and config files with no-cache
+      # Upload HTML files with no-cache and correct content type
       aws s3 sync dist s3://${var.web_bucket} \
         --delete \
         --cache-control "no-cache" \
         --exclude "*" \
         --include "*.html" \
+        --content-type "text/html"
+
+      # Upload JSON files with no-cache and correct content type
+      aws s3 sync dist s3://${var.web_bucket} \
+        --delete \
+        --cache-control "no-cache" \
+        --exclude "*" \
         --include "*.json" \
+        --content-type "application/json"
+
+      # Upload text files with no-cache and correct content type
+      aws s3 sync dist s3://${var.web_bucket} \
+        --delete \
+        --cache-control "no-cache" \
+        --exclude "*" \
         --include "*.txt" \
+        --content-type "text/plain"
+
+      # Upload XML files with no-cache and correct content type
+      aws s3 sync dist s3://${var.web_bucket} \
+        --delete \
+        --cache-control "no-cache" \
+        --exclude "*" \
         --include "*.xml" \
-        --content-type "text/html" \
-        --content-type "application/json" \
-        --content-type "text/plain" \
         --content-type "application/xml"
 
       echo "Deployment complete!"
@@ -106,8 +125,13 @@ variable "cognito_client_id" {
   type        = string
 }
 
-variable "api_url" {
-  description = "API Gateway URL"
+variable "cognito_identity_pool_id" {
+  description = "Cognito Identity Pool ID"
+  type        = string
+}
+
+variable "cloudfront_domain" {
+  description = "CloudFront distribution domain name"
   type        = string
 }
 
