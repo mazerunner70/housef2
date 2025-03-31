@@ -3,7 +3,7 @@ resource "aws_lambda_function" "get_imports" {
   filename         = var.lambda_zip_path
   function_name    = "${var.project_name}-${var.environment}-get-imports"
   role            = var.lambda_role_arn
-  handler         = "import.getImports"
+  handler         = "import.getImports"  
   runtime         = "nodejs18.x"
   timeout         = 30
   memory_size     = 256

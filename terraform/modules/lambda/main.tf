@@ -13,10 +13,15 @@ data "aws_caller_identity" "current" {}
 # Build process
 resource "null_resource" "lambda_build" {
   triggers = {
-    source_code = filebase64sha256("${path.module}/../../../backend/src/handlers/import.ts")
+    # Watch all TypeScript files in the backend/src directory
+    handlers_hash = filebase64sha256("${path.module}/../../../backend/src/handlers/import.ts")
+    services_hash = filebase64sha256("${path.module}/../../../backend/src/services/import.ts")
+    utils_hash = filebase64sha256("${path.module}/../../../backend/src/utils/dynamo.ts")
+    package_hash = filebase64sha256("${path.module}/../../../backend/package.json")
   }
 
   provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
     working_dir = "${path.module}/../../../backend"
     command     = <<EOT
       rm -rf dist

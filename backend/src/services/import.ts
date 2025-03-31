@@ -13,7 +13,7 @@ const s3 = new S3();
 const dynamodb = new DynamoDB.DocumentClient();
 
 const BUCKET_NAME = process.env.IMPORT_BUCKET_NAME || 'housef2-imports';
-const TABLE_NAME = process.env.IMPORT_TABLE_NAME || 'housef2-imports';
+const TABLE_NAME = process.env.IMPORT_TABLE_NAME || 'housef2-imports  ';
 
 type ExpressionAttributeNames = { [key: string]: string };
 
